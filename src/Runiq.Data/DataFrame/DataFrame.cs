@@ -528,6 +528,100 @@ public sealed class DataFrame
         return columnsByName.ContainsKey(columnName);
     }
 
+    /// <summary>
+    /// Determines whether a column exists and stores values with the requested CLR type.
+    /// </summary>
+    /// <typeparam name="T">The expected CLR type of the column values.</typeparam>
+    /// <param name="columnName">The column name to check using case-insensitive lookup.</param>
+    /// <returns>
+    /// <see langword="true"/> when a matching column exists with data type <typeparamref name="T"/>;
+    /// <see langword="false"/> when the column is missing or has a different data type.
+    /// </returns>
+    /// <exception cref="ArgumentException">
+    /// Thrown when <paramref name="columnName"/> is empty or contains only whitespace.
+    /// </exception>
+    /// <exception cref="ArgumentNullException">
+    /// Thrown when <paramref name="columnName"/> is <see langword="null"/>.
+    /// </exception>
+    public bool HasColumnType<T>(string columnName)
+    {
+        return HasColumnType(columnName, typeof(T));
+    }
+
+    /// <summary>
+    /// Determines whether a column exists and stores values with the requested CLR type.
+    /// </summary>
+    /// <param name="columnName">The column name to check using case-insensitive lookup.</param>
+    /// <param name="dataType">The expected CLR type of the column values.</param>
+    /// <returns>
+    /// <see langword="true"/> when a matching column exists with the supplied
+    /// <paramref name="dataType"/>; <see langword="false"/> when the column is missing or has a
+    /// different data type.
+    /// </returns>
+    /// <exception cref="ArgumentException">
+    /// Thrown when <paramref name="columnName"/> is empty or contains only whitespace.
+    /// </exception>
+    /// <exception cref="ArgumentNullException">
+    /// Thrown when <paramref name="columnName"/> or <paramref name="dataType"/> is
+    /// <see langword="null"/>.
+    /// </exception>
+    public bool HasColumnType(string columnName, Type dataType)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(columnName);
+        ArgumentNullException.ThrowIfNull(dataType);
+
+        return columnsByName.TryGetValue(columnName, out var column) && column.DataType == dataType;
+    }
+
+    /// <summary>
+    /// Returns a required column or throws when the DataFrame does not contain it.
+    /// </summary>
+    /// <param name="columnName">The column name to find using case-insensitive lookup.</param>
+    /// <returns>The matching column.</returns>
+    /// <exception cref="ArgumentException">
+    /// Thrown when <paramref name="columnName"/> is empty or contains only whitespace.
+    /// </exception>
+    /// <exception cref="ArgumentNullException">
+    /// Thrown when <paramref name="columnName"/> is <see langword="null"/>.
+    /// </exception>
+    /// <exception cref="KeyNotFoundException">
+    /// Thrown when no matching column exists.
+    /// </exception>
+    public ISeries RequireColumn(string columnName)
+    {
+        return GetColumn(columnName);
+    }
+
+    /// <summary>
+    /// Returns a required column after validating that its data type matches the requested CLR type.
+    /// </summary>
+    /// <typeparam name="T">The expected CLR type of the column values.</typeparam>
+    /// <param name="columnName">The column name to find using case-insensitive lookup.</param>
+    /// <returns>The matching column when it exists and has data type <typeparamref name="T"/>.</returns>
+    /// <exception cref="ArgumentException">
+    /// Thrown when <paramref name="columnName"/> is empty or contains only whitespace, or when the
+    /// matching column exists but has a different data type.
+    /// </exception>
+    /// <exception cref="ArgumentNullException">
+    /// Thrown when <paramref name="columnName"/> is <see langword="null"/>.
+    /// </exception>
+    /// <exception cref="KeyNotFoundException">
+    /// Thrown when no matching column exists.
+    /// </exception>
+    public ISeries RequireColumn<T>(string columnName)
+    {
+        var column = RequireColumn(columnName);
+        var expectedType = typeof(T);
+        if (column.DataType != expectedType)
+        {
+            throw new ArgumentException(
+                $"Column '{column.Name}' has data type '{column.DataType}' but expected '{expectedType}'.",
+                nameof(columnName));
+        }
+
+        return column;
+    }
+
     private static ISeries[] CreateSeriesFromObject(object columns)
     {
         var properties = columns.GetType()
