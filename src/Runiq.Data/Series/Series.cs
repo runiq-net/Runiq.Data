@@ -1,14 +1,14 @@
 namespace Runiq.Data.Series;
 
 /// <summary>
-/// Represents an immutable, ordered, strongly typed sequence of values.
+/// Represents an immutable, ordered, strongly typed DataFrame column value container.
 /// </summary>
 /// <typeparam name="T">The CLR type of each value in the series.</typeparam>
 /// <remarks>
 /// <para>
-/// <see cref="Series{T}"/> is the foundational typed value container for Runiq.Data. Future
-/// DataFrame columns can use a series to hold their ordered values while preserving the column
-/// name, CLR data type, and simple nullability metadata.
+/// <see cref="Series{T}"/> is the low-level typed value container used by DataFrame columns in
+/// Runiq.Data. It is available for advanced scenarios, but the primary consumer DataFrame
+/// creation experience is <c>DataFrame.Create(new { ... })</c>.
 /// </para>
 /// <para>
 /// Creation materializes the supplied values into an internal snapshot, so later changes to the
@@ -17,7 +17,7 @@ namespace Runiq.Data.Series;
 /// value types are reported as not nullable.
 /// </para>
 /// </remarks>
-public sealed class Series<T>
+public sealed class Series<T> : ISeries
 {
     private readonly T[] values;
 
@@ -76,6 +76,20 @@ public sealed class Series<T>
 
             return values[index];
         }
+    }
+
+    /// <summary>
+    /// Gets the value at the specified zero-based row index as an object.
+    /// </summary>
+    /// <param name="index">The zero-based row index to read.</param>
+    /// <returns>The value stored at the specified position.</returns>
+    /// <exception cref="ArgumentOutOfRangeException">
+    /// Thrown when <paramref name="index"/> is less than zero or greater than or equal to
+    /// <see cref="Count"/>.
+    /// </exception>
+    public object? GetValue(int index)
+    {
+        return this[index];
     }
 
     /// <summary>
