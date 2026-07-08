@@ -288,6 +288,57 @@ public sealed class DataFrame
     }
 
     /// <summary>
+    /// Renames one column and returns a new immutable DataFrame with the same rows, values, and
+    /// column order.
+    /// </summary>
+    /// <param name="currentName">The existing column name to rename, matched case-insensitively.</param>
+    /// <param name="newName">The canonical column name to use in the returned DataFrame.</param>
+    /// <returns>
+    /// A new DataFrame whose schema and column collection contain <paramref name="newName"/> in
+    /// the source column's original position.
+    /// </returns>
+    /// <remarks>
+    /// The source DataFrame is not modified. Missing source columns are rejected, and target names
+    /// that conflict with another existing column are rejected using case-insensitive comparison.
+    /// Renaming only the casing of the same column is allowed and updates the canonical name.
+    /// </remarks>
+    /// <exception cref="ArgumentException">
+    /// Thrown when either name is empty or contains only whitespace, or when
+    /// <paramref name="newName"/> conflicts with another existing column.
+    /// </exception>
+    /// <exception cref="ArgumentNullException">
+    /// Thrown when <paramref name="currentName"/> or <paramref name="newName"/> is
+    /// <see langword="null"/>.
+    /// </exception>
+    /// <exception cref="KeyNotFoundException">
+    /// Thrown when <paramref name="currentName"/> does not match an existing column.
+    /// </exception>
+    public DataFrame RenameColumn(string currentName, string newName)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(currentName);
+        ArgumentException.ThrowIfNullOrWhiteSpace(newName);
+
+        var sourceColumn = GetColumn(currentName);
+        if (columnsByName.TryGetValue(newName, out var conflictingColumn) && !ReferenceEquals(sourceColumn, conflictingColumn))
+        {
+            throw new ArgumentException($"Column '{newName}' conflicts with an existing DataFrame column.", nameof(newName));
+        }
+
+        var sourceSchemaColumn = Schema.GetColumn(sourceColumn.Name);
+        var renamedColumns = Columns
+            .Select(column => ReferenceEquals(column, sourceColumn) ? CreateSeriesWithName(newName, column) : column)
+            .ToArray();
+        var renamedSchemaColumns = Schema.Columns
+            .Select(column => column.Ordinal == sourceSchemaColumn.Ordinal
+                ? ColumnSchema.Create(newName, column.DataType, column.IsNullable, column.Ordinal)
+                : column)
+            .ToArray();
+
+        var schema = DataFrameSchema.Create(renamedSchemaColumns);
+        return new DataFrame(schema, Array.AsReadOnly(renamedColumns));
+    }
+
+    /// <summary>
     /// Gets the column with the specified name using case-insensitive lookup.
     /// </summary>
     /// <param name="columnName">The column name to find.</param>
