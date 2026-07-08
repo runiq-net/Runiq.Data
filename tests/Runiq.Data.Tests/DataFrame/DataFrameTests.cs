@@ -512,6 +512,234 @@ public sealed class DataFrameTests
         }));
     }
 
+    /// <summary>
+    /// Verifies that selecting one column returns a new one-column DataFrame.
+    /// </summary>
+    [Fact]
+    public void Select_WithOneColumn_ReturnsOneColumnDataFrame()
+    {
+        // Verifies that projection keeps only the requested column.
+        var df = global::Runiq.Data.DataFrame.Create(new { Name = new[] { "Ali", "Ayse" }, Age = new[] { 30, 25 } });
+
+        var selected = df.Select("Name");
+
+        Assert.NotSame(df, selected);
+        Assert.Equal(2, selected.RowCount);
+        Assert.Equal(1, selected.ColumnCount);
+        Assert.Collection(selected.Columns, column => Assert.Equal("Name", column.Name));
+        Assert.Collection(selected.Schema.Columns, column => Assert.Equal("Name", column.Name));
+    }
+
+    /// <summary>
+    /// Verifies that selecting multiple columns follows the requested order.
+    /// </summary>
+    [Fact]
+    public void Select_WithMultipleColumns_ReturnsColumnsInRequestedOrder()
+    {
+        // Verifies that projection order follows the caller instead of the source DataFrame.
+        var df = global::Runiq.Data.DataFrame.Create(new
+        {
+            Name = new[] { "Ali", "Ayse" },
+            Age = new[] { 30, 25 },
+            Active = new[] { true, false }
+        });
+
+        var selected = df.Select("Active", "Name");
+
+        Assert.Equal(2, selected.ColumnCount);
+        Assert.Collection(
+            selected.Columns,
+            column => Assert.Equal("Active", column.Name),
+            column => Assert.Equal("Name", column.Name));
+        Assert.Collection(
+            selected.Schema.Columns,
+            column =>
+            {
+                Assert.Equal("Active", column.Name);
+                Assert.Equal(0, column.Ordinal);
+            },
+            column =>
+            {
+                Assert.Equal("Name", column.Name);
+                Assert.Equal(1, column.Ordinal);
+            });
+    }
+
+    /// <summary>
+    /// Verifies that selected column values and metadata are preserved.
+    /// </summary>
+    [Fact]
+    public void Select_PreservesValuesDataTypesAndNullability()
+    {
+        // Verifies that projection copies the source column contract into the result.
+        var df = global::Runiq.Data.DataFrame.Create(new
+        {
+            Name = new[] { "Ali", "Ayse" },
+            Score = new int?[] { 10, null },
+            Age = new[] { 30, 25 }
+        });
+
+        var selected = df.Select("Score", "Age");
+
+        Assert.Equal(10, selected["Score"].GetValue(0));
+        Assert.Null(selected["Score"].GetValue(1));
+        Assert.Equal(25, selected["Age"].GetValue(1));
+        Assert.Equal(typeof(int?), selected["Score"].DataType);
+        Assert.True(selected["Score"].IsNullable);
+        Assert.Equal(typeof(int), selected["Age"].DataType);
+        Assert.False(selected["Age"].IsNullable);
+        Assert.Equal(typeof(int?), selected.Schema.GetColumn("Score").DataType);
+        Assert.True(selected.Schema.GetColumn("Score").IsNullable);
+        Assert.Equal(typeof(int), selected.Schema.GetColumn("Age").DataType);
+        Assert.False(selected.Schema.GetColumn("Age").IsNullable);
+    }
+
+    /// <summary>
+    /// Verifies that selecting columns does not modify the original DataFrame.
+    /// </summary>
+    [Fact]
+    public void Select_DoesNotModifyOriginalDataFrame()
+    {
+        // Verifies that projection returns a separate DataFrame and leaves the source shape intact.
+        var df = global::Runiq.Data.DataFrame.Create(new
+        {
+            Name = new[] { "Ali" },
+            Age = new[] { 30 },
+            Active = new[] { true }
+        });
+
+        var selected = df.Select("Age");
+
+        Assert.NotSame(df, selected);
+        Assert.Equal(3, df.ColumnCount);
+        Assert.Equal(1, selected.ColumnCount);
+        Assert.Collection(
+            df.Columns,
+            column => Assert.Equal("Name", column.Name),
+            column => Assert.Equal("Age", column.Name),
+            column => Assert.Equal("Active", column.Name));
+    }
+
+    /// <summary>
+    /// Verifies that selecting with different casing succeeds and keeps source casing.
+    /// </summary>
+    [Fact]
+    public void Select_WithDifferentCasing_ReturnsCanonicalColumnNames()
+    {
+        // Verifies that projection lookup is case-insensitive but result names remain canonical.
+        var df = global::Runiq.Data.DataFrame.Create(new { Name = new[] { "Ali" }, Age = new[] { 30 } });
+
+        var selected = df.Select("name", "AGE");
+
+        Assert.Collection(
+            selected.Columns,
+            column => Assert.Equal("Name", column.Name),
+            column => Assert.Equal("Age", column.Name));
+        Assert.Collection(
+            selected.Schema.Columns,
+            column => Assert.Equal("Name", column.Name),
+            column => Assert.Equal("Age", column.Name));
+        Assert.Equal("Age", selected["age"].Name);
+    }
+
+    /// <summary>
+    /// Verifies that null column name arrays are rejected.
+    /// </summary>
+    [Fact]
+    public void Select_WithNullColumnNamesArray_ThrowsArgumentNullException()
+    {
+        // Verifies that the params array itself must be supplied.
+        var df = global::Runiq.Data.DataFrame.Create(new { Age = new[] { 30 } });
+        string[] columnNames = null!;
+
+        Assert.Throws<ArgumentNullException>(() => df.Select(columnNames));
+    }
+
+    /// <summary>
+    /// Verifies that empty column name arrays are rejected.
+    /// </summary>
+    [Fact]
+    public void Select_WithEmptyColumnNamesArray_ThrowsArgumentException()
+    {
+        // Verifies that projection cannot produce a zero-column DataFrame.
+        var df = global::Runiq.Data.DataFrame.Create(new { Age = new[] { 30 } });
+
+        Assert.Throws<ArgumentException>(() => df.Select());
+    }
+
+    /// <summary>
+    /// Verifies that invalid column names are rejected.
+    /// </summary>
+    /// <param name="columnName">The invalid requested column name.</param>
+    [Theory]
+    [InlineData(null)]
+    [InlineData("")]
+    [InlineData("   ")]
+    public void Select_WithInvalidColumnName_Throws(string? columnName)
+    {
+        // Verifies that each requested column name must be meaningful.
+        var df = global::Runiq.Data.DataFrame.Create(new { Age = new[] { 30 } });
+
+        Assert.ThrowsAny<ArgumentException>(() => df.Select(columnName!));
+    }
+
+    /// <summary>
+    /// Verifies that missing column names are rejected clearly.
+    /// </summary>
+    [Fact]
+    public void Select_WithMissingColumnName_ThrowsKeyNotFoundException()
+    {
+        // Verifies that projection reports the missing requested column.
+        var df = global::Runiq.Data.DataFrame.Create(new { Age = new[] { 30 } });
+
+        var exception = Assert.Throws<KeyNotFoundException>(() => df.Select("Missing"));
+
+        Assert.Contains("Missing", exception.Message);
+    }
+
+    /// <summary>
+    /// Verifies that duplicate selected column names are rejected.
+    /// </summary>
+    [Fact]
+    public void Select_WithDuplicateColumnNames_ThrowsArgumentException()
+    {
+        // Verifies that projection does not allow duplicate result columns.
+        var df = global::Runiq.Data.DataFrame.Create(new { Age = new[] { 30 } });
+
+        Assert.Throws<ArgumentException>(() => df.Select("Age", "Age"));
+    }
+
+    /// <summary>
+    /// Verifies that duplicate selected column names are rejected case-insensitively.
+    /// </summary>
+    [Fact]
+    public void Select_WithDuplicateColumnNamesDifferentCasing_ThrowsArgumentException()
+    {
+        // Verifies that projection duplicate detection matches DataFrame lookup semantics.
+        var df = global::Runiq.Data.DataFrame.Create(new { Age = new[] { 30 } });
+
+        Assert.Throws<ArgumentException>(() => df.Select("Age", "age"));
+    }
+
+    /// <summary>
+    /// Verifies that selected DataFrames remain immutable through the public API.
+    /// </summary>
+    [Fact]
+    public void Select_ResultDoesNotExposePublicMutation()
+    {
+        // Verifies that projection results expose read-only state like created DataFrames.
+        var df = global::Runiq.Data.DataFrame.Create(new { Age = new[] { 30 }, Name = new[] { "Ali" } });
+
+        var selected = df.Select("Age");
+        var writableProperties = selected.GetType()
+            .GetProperties(BindingFlags.Instance | BindingFlags.Public)
+            .Where(static property => property.SetMethod is not null)
+            .Select(static property => property.Name);
+
+        Assert.False(selected.Columns is ICollection<ISeries> { IsReadOnly: false });
+        Assert.Empty(writableProperties);
+    }
+
     private class DuplicateColumnBase
     {
         public int[] Id { get; } = [1];
