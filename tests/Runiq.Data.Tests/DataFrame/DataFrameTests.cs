@@ -687,14 +687,15 @@ public sealed class DataFrameTests
     /// Verifies that missing column names are rejected clearly.
     /// </summary>
     [Fact]
-    public void Select_WithMissingColumnName_ThrowsKeyNotFoundException()
+    public void Select_WithMissingColumn_ThrowsClearException()
     {
         // Verifies that projection reports the missing requested column.
-        var df = global::Runiq.Data.DataFrame.Create(new { Age = new[] { 30 } });
+        var df = global::Runiq.Data.DataFrame.Create(new { Name = new[] { "Ali" }, Age = new[] { 30 } });
 
-        var exception = Assert.Throws<KeyNotFoundException>(() => df.Select("Missing"));
+        var exception = Assert.Throws<KeyNotFoundException>(() => df.Select("Name", "MissingColumn"));
 
-        Assert.Contains("Missing", exception.Message);
+        Assert.Contains("MissingColumn", exception.Message);
+        Assert.Contains("exists", exception.Message);
     }
 
     /// <summary>
@@ -737,6 +738,296 @@ public sealed class DataFrameTests
             .Select(static property => property.Name);
 
         Assert.False(selected.Columns is ICollection<ISeries> { IsReadOnly: false });
+        Assert.Empty(writableProperties);
+    }
+
+    /// <summary>
+    /// Verifies that dropping one column removes only that column.
+    /// </summary>
+    [Fact]
+    public void Drop_WithOneColumn_ReturnsDataFrameWithoutColumn()
+    {
+        // Verifies that drop removes the requested column and keeps the remaining source order.
+        var df = global::Runiq.Data.DataFrame.Create(new
+        {
+            Name = new[] { "Ali", "Ayse" },
+            Age = new[] { 30, 25 },
+            Active = new[] { true, false }
+        });
+
+        var dropped = df.Drop("Age");
+
+        Assert.NotSame(df, dropped);
+        Assert.Equal(2, dropped.RowCount);
+        Assert.Equal(2, dropped.ColumnCount);
+        Assert.False(dropped.HasColumn("Age"));
+        Assert.Collection(
+            dropped.Columns,
+            column => Assert.Equal("Name", column.Name),
+            column => Assert.Equal("Active", column.Name));
+    }
+
+    /// <summary>
+    /// Verifies that dropping multiple columns removes all requested columns.
+    /// </summary>
+    [Fact]
+    public void Drop_WithMultipleColumns_ReturnsDataFrameWithoutColumns()
+    {
+        // Verifies that multiple requested drops are applied in one projection.
+        var df = global::Runiq.Data.DataFrame.Create(new
+        {
+            Id = new[] { 1, 2 },
+            DebugFlag = new[] { true, false },
+            Name = new[] { "Ali", "Ayse" },
+            InternalNote = new string?[] { null, "review" }
+        });
+
+        var dropped = df.Drop("DebugFlag", "InternalNote");
+
+        Assert.Equal(2, dropped.ColumnCount);
+        Assert.False(dropped.HasColumn("DebugFlag"));
+        Assert.False(dropped.HasColumn("InternalNote"));
+        Assert.Collection(
+            dropped.Columns,
+            column => Assert.Equal("Id", column.Name),
+            column => Assert.Equal("Name", column.Name));
+    }
+
+    /// <summary>
+    /// Verifies that dropped DataFrames preserve remaining values and metadata.
+    /// </summary>
+    [Fact]
+    public void Drop_PreservesRemainingValuesDataTypesAndNullability()
+    {
+        // Verifies that drop keeps the column contracts and values for columns that remain.
+        var df = global::Runiq.Data.DataFrame.Create(new
+        {
+            Name = new[] { "Ali", "Ayse" },
+            Score = new int?[] { 10, null },
+            Age = new[] { 30, 25 }
+        });
+
+        var dropped = df.Drop("Name");
+
+        Assert.Equal(10, dropped["Score"].GetValue(0));
+        Assert.Null(dropped["Score"].GetValue(1));
+        Assert.Equal(25, dropped["Age"].GetValue(1));
+        Assert.Equal(typeof(int?), dropped["Score"].DataType);
+        Assert.True(dropped["Score"].IsNullable);
+        Assert.Equal(typeof(int), dropped["Age"].DataType);
+        Assert.False(dropped["Age"].IsNullable);
+        Assert.Equal(typeof(int?), dropped.Schema.GetColumn("Score").DataType);
+        Assert.True(dropped.Schema.GetColumn("Score").IsNullable);
+        Assert.Equal(typeof(int), dropped.Schema.GetColumn("Age").DataType);
+        Assert.False(dropped.Schema.GetColumn("Age").IsNullable);
+    }
+
+    /// <summary>
+    /// Verifies that drop projects schema and columns in source order.
+    /// </summary>
+    [Fact]
+    public void Drop_PreservesRemainingSchemaAndColumnOrder()
+    {
+        // Verifies that the result follows the original order after removed columns are skipped.
+        var df = global::Runiq.Data.DataFrame.Create(new
+        {
+            First = new[] { 1 },
+            Second = new[] { 2 },
+            Third = new[] { 3 },
+            Fourth = new[] { 4 }
+        });
+
+        var dropped = df.Drop("Second");
+
+        Assert.Collection(
+            dropped.Columns,
+            column => Assert.Equal("First", column.Name),
+            column => Assert.Equal("Third", column.Name),
+            column => Assert.Equal("Fourth", column.Name));
+        Assert.Collection(
+            dropped.Schema.Columns,
+            column =>
+            {
+                Assert.Equal("First", column.Name);
+                Assert.Equal(0, column.Ordinal);
+            },
+            column =>
+            {
+                Assert.Equal("Third", column.Name);
+                Assert.Equal(1, column.Ordinal);
+            },
+            column =>
+            {
+                Assert.Equal("Fourth", column.Name);
+                Assert.Equal(2, column.Ordinal);
+            });
+    }
+
+    /// <summary>
+    /// Verifies that dropping columns does not modify the original DataFrame.
+    /// </summary>
+    [Fact]
+    public void Drop_DoesNotModifyOriginalDataFrame()
+    {
+        // Verifies that drop returns a separate DataFrame and leaves the source shape intact.
+        var df = global::Runiq.Data.DataFrame.Create(new
+        {
+            Name = new[] { "Ali" },
+            Age = new[] { 30 },
+            Active = new[] { true }
+        });
+
+        var dropped = df.Drop("Age");
+
+        Assert.NotSame(df, dropped);
+        Assert.Equal(3, df.ColumnCount);
+        Assert.Equal(2, dropped.ColumnCount);
+        Assert.True(df.HasColumn("Age"));
+        Assert.Collection(
+            df.Columns,
+            column => Assert.Equal("Name", column.Name),
+            column => Assert.Equal("Age", column.Name),
+            column => Assert.Equal("Active", column.Name));
+    }
+
+    /// <summary>
+    /// Verifies that dropping with different casing succeeds and keeps source names.
+    /// </summary>
+    [Fact]
+    public void Drop_WithDifferentCasing_ReturnsCanonicalRemainingColumnNames()
+    {
+        // Verifies that drop lookup is case-insensitive but remaining result names stay canonical.
+        var df = global::Runiq.Data.DataFrame.Create(new
+        {
+            Id = new[] { 1 },
+            DebugFlag = new[] { true },
+            Name = new[] { "Ali" },
+            InternalNote = new[] { "private" }
+        });
+
+        var dropped = df.Drop("debugflag", "INTERNALNOTE");
+
+        Assert.Collection(
+            dropped.Columns,
+            column => Assert.Equal("Id", column.Name),
+            column => Assert.Equal("Name", column.Name));
+        Assert.Collection(
+            dropped.Schema.Columns,
+            column => Assert.Equal("Id", column.Name),
+            column => Assert.Equal("Name", column.Name));
+        Assert.Equal("Name", dropped["name"].Name);
+    }
+
+    /// <summary>
+    /// Verifies that missing columns are rejected by default.
+    /// </summary>
+    [Fact]
+    public void Drop_WithMissingColumn_ThrowsClearException()
+    {
+        // Verifies that Pandas-like default behavior reports missing drop columns instead of ignoring them.
+        var df = global::Runiq.Data.DataFrame.Create(new { Age = new[] { 30 } });
+
+        var exception = Assert.Throws<KeyNotFoundException>(() => df.Drop("MissingColumn"));
+
+        Assert.Contains("MissingColumn", exception.Message);
+        Assert.Contains("does not exist", exception.Message);
+    }
+
+    /// <summary>
+    /// Verifies that null column name arrays are rejected.
+    /// </summary>
+    [Fact]
+    public void Drop_WithNullColumnNamesArray_ThrowsArgumentNullException()
+    {
+        // Verifies that the params array itself must be supplied.
+        var df = global::Runiq.Data.DataFrame.Create(new { Age = new[] { 30 } });
+        string[] columnNames = null!;
+
+        Assert.Throws<ArgumentNullException>(() => df.Drop(columnNames));
+    }
+
+    /// <summary>
+    /// Verifies that empty column name arrays are rejected.
+    /// </summary>
+    [Fact]
+    public void Drop_WithEmptyColumnNamesArray_ThrowsArgumentException()
+    {
+        // Verifies that a drop operation must name at least one column.
+        var df = global::Runiq.Data.DataFrame.Create(new { Age = new[] { 30 } });
+
+        Assert.Throws<ArgumentException>(() => df.Drop());
+    }
+
+    /// <summary>
+    /// Verifies that invalid drop column names are rejected.
+    /// </summary>
+    /// <param name="columnName">The invalid drop column name.</param>
+    [Theory]
+    [InlineData(null)]
+    [InlineData("")]
+    [InlineData("   ")]
+    public void Drop_WithInvalidColumnName_Throws(string? columnName)
+    {
+        // Verifies that each drop column name must be meaningful.
+        var df = global::Runiq.Data.DataFrame.Create(new { Age = new[] { 30 } });
+
+        Assert.ThrowsAny<ArgumentException>(() => df.Drop(columnName!));
+    }
+
+    /// <summary>
+    /// Verifies that duplicate drop column names are rejected.
+    /// </summary>
+    [Fact]
+    public void Drop_WithDuplicateColumnNames_ThrowsArgumentException()
+    {
+        // Verifies that drop does not accept the same column more than once.
+        var df = global::Runiq.Data.DataFrame.Create(new { Age = new[] { 30 }, Name = new[] { "Ali" } });
+
+        Assert.Throws<ArgumentException>(() => df.Drop("Age", "Age"));
+    }
+
+    /// <summary>
+    /// Verifies that duplicate drop column names are rejected case-insensitively.
+    /// </summary>
+    [Fact]
+    public void Drop_WithDuplicateColumnNamesDifferentCasing_ThrowsArgumentException()
+    {
+        // Verifies that drop duplicate detection matches DataFrame lookup semantics.
+        var df = global::Runiq.Data.DataFrame.Create(new { Age = new[] { 30 }, Name = new[] { "Ali" } });
+
+        Assert.Throws<ArgumentException>(() => df.Drop("Age", "age"));
+    }
+
+    /// <summary>
+    /// Verifies that dropping all columns is rejected clearly.
+    /// </summary>
+    [Fact]
+    public void Drop_WithAllColumns_ThrowsArgumentException()
+    {
+        // Verifies that drop does not create a zero-column DataFrame while schemas require columns.
+        var df = global::Runiq.Data.DataFrame.Create(new { Age = new[] { 30 }, Name = new[] { "Ali" } });
+
+        var exception = Assert.Throws<ArgumentException>(() => df.Drop("Age", "Name"));
+
+        Assert.Contains("Dropping all columns", exception.Message);
+    }
+
+    /// <summary>
+    /// Verifies that dropped DataFrames remain immutable through the public API.
+    /// </summary>
+    [Fact]
+    public void Drop_ResultDoesNotExposePublicMutation()
+    {
+        // Verifies that drop results expose read-only state like created DataFrames.
+        var df = global::Runiq.Data.DataFrame.Create(new { Age = new[] { 30 }, Name = new[] { "Ali" } });
+
+        var dropped = df.Drop("Name");
+        var writableProperties = dropped.GetType()
+            .GetProperties(BindingFlags.Instance | BindingFlags.Public)
+            .Where(static property => property.SetMethod is not null)
+            .Select(static property => property.Name);
+
+        Assert.False(dropped.Columns is ICollection<ISeries> { IsReadOnly: false });
         Assert.Empty(writableProperties);
     }
 
