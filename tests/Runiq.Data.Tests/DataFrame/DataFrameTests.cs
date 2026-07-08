@@ -742,6 +742,228 @@ public sealed class DataFrameTests
     }
 
     /// <summary>
+    /// Verifies that renaming one column updates only that column while preserving DataFrame shape.
+    /// </summary>
+    [Fact]
+    public void RenameColumn_WithOneColumn_RenamesColumnAndPreservesShapeValuesAndMetadata()
+    {
+        // Verifies that rename changes the canonical name without changing rows, order, values, or metadata.
+        var df = global::Runiq.Data.DataFrame.Create(new
+        {
+            cust_id = new[] { 1, 2, 3 },
+            customer_name = new[] { "Ali", "Ayse", "Mehmet" },
+            score = new int?[] { 10, null, 30 }
+        });
+
+        var renamed = df.RenameColumn("cust_id", "CustomerId");
+
+        Assert.NotSame(df, renamed);
+        Assert.Equal(3, renamed.RowCount);
+        Assert.Equal(3, renamed.ColumnCount);
+        Assert.Collection(
+            renamed.Columns,
+            column =>
+            {
+                Assert.Equal("CustomerId", column.Name);
+                Assert.Equal(typeof(int), column.DataType);
+                Assert.False(column.IsNullable);
+                Assert.Equal(1, column.GetValue(0));
+                Assert.Equal(3, column.GetValue(2));
+            },
+            column => Assert.Equal("customer_name", column.Name),
+            column =>
+            {
+                Assert.Equal("score", column.Name);
+                Assert.Equal(typeof(int?), column.DataType);
+                Assert.True(column.IsNullable);
+            });
+        Assert.Collection(
+            renamed.Schema.Columns,
+            column =>
+            {
+                Assert.Equal("CustomerId", column.Name);
+                Assert.Equal(typeof(int), column.DataType);
+                Assert.False(column.IsNullable);
+                Assert.Equal(0, column.Ordinal);
+            },
+            column =>
+            {
+                Assert.Equal("customer_name", column.Name);
+                Assert.Equal(1, column.Ordinal);
+            },
+            column =>
+            {
+                Assert.Equal("score", column.Name);
+                Assert.Equal(2, column.Ordinal);
+            });
+        Assert.True(renamed.HasColumn("CustomerId"));
+        Assert.False(renamed.HasColumn("cust_id"));
+        Assert.Equal("CustomerId", renamed["CustomerId"].Name);
+        Assert.Throws<KeyNotFoundException>(() => renamed.GetColumn("cust_id"));
+    }
+
+    /// <summary>
+    /// Verifies that renaming does not modify the original DataFrame.
+    /// </summary>
+    [Fact]
+    public void RenameColumn_DoesNotModifyOriginalDataFrame()
+    {
+        // Verifies that rename returns a separate DataFrame and leaves the source schema intact.
+        var df = global::Runiq.Data.DataFrame.Create(new { cust_id = new[] { 1 }, Age = new[] { 30 } });
+
+        var renamed = df.RenameColumn("cust_id", "CustomerId");
+
+        Assert.NotSame(df, renamed);
+        Assert.True(df.HasColumn("cust_id"));
+        Assert.False(df.HasColumn("CustomerId"));
+        Assert.Collection(
+            df.Columns,
+            column => Assert.Equal("cust_id", column.Name),
+            column => Assert.Equal("Age", column.Name));
+        Assert.Collection(
+            df.Schema.Columns,
+            column => Assert.Equal("cust_id", column.Name),
+            column => Assert.Equal("Age", column.Name));
+    }
+
+    /// <summary>
+    /// Verifies Pandas-like case-insensitive source lookup for column rename.
+    /// </summary>
+    [Fact]
+    public void RenameColumn_WithDifferentCurrentNameCasing_UsesRequestedCanonicalName()
+    {
+        // Verifies that source lookup ignores casing and the result uses the requested new name.
+        var df = global::Runiq.Data.DataFrame.Create(new { cust_id = new[] { 1, 2 }, Age = new[] { 30, 25 } });
+
+        var renamed = df.RenameColumn("CUST_ID", "CustomerId");
+
+        Assert.True(renamed.HasColumn("CustomerId"));
+        Assert.True(renamed.HasColumn("customerid"));
+        Assert.False(renamed.HasColumn("cust_id"));
+        Assert.Equal("CustomerId", renamed["CUSTOMERID"].Name);
+        Assert.Equal(2, renamed["customerid"].GetValue(1));
+        Assert.Collection(
+            renamed.Columns,
+            column => Assert.Equal("CustomerId", column.Name),
+            column => Assert.Equal("Age", column.Name));
+    }
+
+    /// <summary>
+    /// Verifies that changing only canonical casing is allowed.
+    /// </summary>
+    [Fact]
+    public void RenameColumn_WithSameColumnDifferentCasing_UpdatesCanonicalName()
+    {
+        // Verifies that same-column casing changes are not treated as conflicts.
+        var df = global::Runiq.Data.DataFrame.Create(new { age = new[] { 30, 25 }, Name = new[] { "Ali", "Ayse" } });
+
+        var renamed = df.RenameColumn("age", "Age");
+
+        Assert.True(renamed.HasColumn("Age"));
+        Assert.True(renamed.HasColumn("age"));
+        Assert.Equal("Age", renamed.GetColumn("age").Name);
+        Assert.Equal("Age", renamed.Schema.GetColumn("age").Name);
+        Assert.Equal(30, renamed["Age"].GetValue(0));
+    }
+
+    /// <summary>
+    /// Verifies that invalid source column names are rejected.
+    /// </summary>
+    /// <param name="currentName">The invalid source column name.</param>
+    [Theory]
+    [InlineData(null)]
+    [InlineData("")]
+    [InlineData("   ")]
+    public void RenameColumn_WithInvalidCurrentName_Throws(string? currentName)
+    {
+        // Verifies that the source column name must be meaningful.
+        var df = global::Runiq.Data.DataFrame.Create(new { Age = new[] { 30 } });
+
+        Assert.ThrowsAny<ArgumentException>(() => df.RenameColumn(currentName!, "Years"));
+    }
+
+    /// <summary>
+    /// Verifies that invalid target column names are rejected.
+    /// </summary>
+    /// <param name="newName">The invalid target column name.</param>
+    [Theory]
+    [InlineData(null)]
+    [InlineData("")]
+    [InlineData("   ")]
+    public void RenameColumn_WithInvalidNewName_Throws(string? newName)
+    {
+        // Verifies that the target column name must be meaningful.
+        var df = global::Runiq.Data.DataFrame.Create(new { Age = new[] { 30 } });
+
+        Assert.ThrowsAny<ArgumentException>(() => df.RenameColumn("Age", newName!));
+    }
+
+    /// <summary>
+    /// Verifies that missing source columns are rejected clearly.
+    /// </summary>
+    [Fact]
+    public void RenameColumn_WithMissingCurrentName_ThrowsClearException()
+    {
+        // Verifies that rename reports a missing source column instead of silently ignoring it.
+        var df = global::Runiq.Data.DataFrame.Create(new { Age = new[] { 30 } });
+
+        var exception = Assert.Throws<KeyNotFoundException>(() => df.RenameColumn("MissingColumn", "Years"));
+
+        Assert.Contains("MissingColumn", exception.Message);
+        Assert.Contains("exists", exception.Message);
+    }
+
+    /// <summary>
+    /// Verifies that target names cannot conflict with another existing column.
+    /// </summary>
+    [Fact]
+    public void RenameColumn_WithConflictingNewName_ThrowsArgumentException()
+    {
+        // Verifies that rename cannot produce duplicate columns.
+        var df = global::Runiq.Data.DataFrame.Create(new { Age = new[] { 30 }, Name = new[] { "Ali" } });
+
+        var exception = Assert.Throws<ArgumentException>(() => df.RenameColumn("Age", "Name"));
+
+        Assert.Contains("Name", exception.Message);
+        Assert.Contains("conflicts", exception.Message);
+    }
+
+    /// <summary>
+    /// Verifies that target name conflicts are detected case-insensitively.
+    /// </summary>
+    [Fact]
+    public void RenameColumn_WithConflictingNewNameDifferentCasing_ThrowsArgumentException()
+    {
+        // Verifies that target conflict detection matches DataFrame lookup semantics.
+        var df = global::Runiq.Data.DataFrame.Create(new { Age = new[] { 30 }, Name = new[] { "Ali" } });
+
+        var exception = Assert.Throws<ArgumentException>(() => df.RenameColumn("Age", "name"));
+
+        Assert.Contains("name", exception.Message);
+        Assert.Contains("conflicts", exception.Message);
+    }
+
+    /// <summary>
+    /// Verifies that renamed DataFrames remain immutable through the public API.
+    /// </summary>
+    [Fact]
+    public void RenameColumn_ResultDoesNotExposePublicMutation()
+    {
+        // Verifies that rename results expose read-only state like created DataFrames.
+        var df = global::Runiq.Data.DataFrame.Create(new { Age = new[] { 30 }, Name = new[] { "Ali" } });
+
+        var renamed = df.RenameColumn("Age", "Years");
+        var writableProperties = renamed.GetType()
+            .GetProperties(BindingFlags.Instance | BindingFlags.Public)
+            .Where(static property => property.SetMethod is not null)
+            .Select(static property => property.Name);
+
+        Assert.NotSame(df, renamed);
+        Assert.False(renamed.Columns is ICollection<ISeries> { IsReadOnly: false });
+        Assert.Empty(writableProperties);
+    }
+
+    /// <summary>
     /// Verifies that dropping one column removes only that column.
     /// </summary>
     [Fact]
