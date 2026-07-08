@@ -220,6 +220,74 @@ public sealed class DataFrame
     }
 
     /// <summary>
+    /// Projects the DataFrame to a new immutable DataFrame without the requested columns.
+    /// </summary>
+    /// <param name="columnNames">The column names to remove from the result.</param>
+    /// <returns>
+    /// A new DataFrame whose rows are unchanged and whose columns and schema contain every
+    /// source column except the requested drops, preserving the remaining source order.
+    /// </returns>
+    /// <remarks>
+    /// Column lookup is case-insensitive, but remaining columns keep their original source names.
+    /// Missing columns are rejected by default instead of being ignored.
+    /// </remarks>
+    /// <exception cref="ArgumentException">
+    /// Thrown when no column names are supplied, a column name is empty or whitespace, a column
+    /// name is dropped more than once using case-insensitive comparison, or all columns would be
+    /// removed.
+    /// </exception>
+    /// <exception cref="ArgumentNullException">
+    /// Thrown when <paramref name="columnNames"/> or one of its entries is <see langword="null"/>.
+    /// </exception>
+    /// <exception cref="KeyNotFoundException">
+    /// Thrown when a requested drop column does not exist.
+    /// </exception>
+    public DataFrame Drop(params string[] columnNames)
+    {
+        ArgumentNullException.ThrowIfNull(columnNames);
+
+        if (columnNames.Length == 0)
+        {
+            throw new ArgumentException("At least one column name must be dropped.", nameof(columnNames));
+        }
+
+        var droppedNames = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        foreach (var columnName in columnNames)
+        {
+            ArgumentException.ThrowIfNullOrWhiteSpace(columnName);
+
+            if (!droppedNames.Add(columnName))
+            {
+                throw new ArgumentException($"Column '{columnName}' was dropped more than once.", nameof(columnNames));
+            }
+
+            if (!columnsByName.ContainsKey(columnName))
+            {
+                throw new KeyNotFoundException($"Column '{columnName}' does not exist in the DataFrame.");
+            }
+        }
+
+        if (droppedNames.Count == ColumnCount)
+        {
+            throw new ArgumentException("Dropping all columns is not supported because a DataFrame schema must contain at least one column.", nameof(columnNames));
+        }
+
+        var remainingColumns = Columns
+            .Where(column => !droppedNames.Contains(column.Name))
+            .ToArray();
+        var remainingSchemaColumns = remainingColumns
+            .Select((column, index) =>
+            {
+                var schemaColumn = Schema.GetColumn(column.Name);
+                return ColumnSchema.Create(schemaColumn.Name, schemaColumn.DataType, schemaColumn.IsNullable, index);
+            })
+            .ToArray();
+
+        var schema = DataFrameSchema.Create(remainingSchemaColumns);
+        return new DataFrame(schema, Array.AsReadOnly(remainingColumns));
+    }
+
+    /// <summary>
     /// Gets the column with the specified name using case-insensitive lookup.
     /// </summary>
     /// <param name="columnName">The column name to find.</param>
