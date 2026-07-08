@@ -81,6 +81,27 @@ public sealed class DataFrame
     public ISeries this[string columnName] => GetColumn(columnName);
 
     /// <summary>
+    /// Returns a read-only view over the row at the specified zero-based index.
+    /// </summary>
+    /// <param name="index">The zero-based row index to read.</param>
+    /// <returns>A row view that exposes values from the selected row.</returns>
+    /// <exception cref="ArgumentOutOfRangeException">
+    /// Thrown when <paramref name="index"/> is negative or outside the DataFrame row range.
+    /// </exception>
+    public DataFrameRow GetRow(int index)
+    {
+        if (index < 0 || index >= rowCount)
+        {
+            throw new ArgumentOutOfRangeException(
+                nameof(index),
+                index,
+                $"Row index must be between 0 and {rowCount - 1}, but the DataFrame contains {rowCount} rows.");
+        }
+
+        return new DataFrameRow(this, index);
+    }
+
+    /// <summary>
     /// Creates a DataFrame from public readable properties on an object.
     /// </summary>
     /// <param name="columns">
