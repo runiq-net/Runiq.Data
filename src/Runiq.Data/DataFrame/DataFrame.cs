@@ -162,6 +162,64 @@ public sealed class DataFrame
     }
 
     /// <summary>
+    /// Projects the DataFrame to a new immutable DataFrame containing only the requested columns.
+    /// </summary>
+    /// <param name="columnNames">
+    /// The column names to keep, in the exact order they should appear in the result.
+    /// </param>
+    /// <returns>
+    /// A new DataFrame whose rows are unchanged and whose columns and schema are limited to the
+    /// selected columns.
+    /// </returns>
+    /// <exception cref="ArgumentException">
+    /// Thrown when no column names are supplied, a column name is empty or whitespace, or a column
+    /// name is selected more than once using case-insensitive comparison.
+    /// </exception>
+    /// <exception cref="ArgumentNullException">
+    /// Thrown when <paramref name="columnNames"/> or one of its entries is <see langword="null"/>.
+    /// </exception>
+    /// <exception cref="KeyNotFoundException">
+    /// Thrown when a requested column does not exist.
+    /// </exception>
+    public DataFrame Select(params string[] columnNames)
+    {
+        ArgumentNullException.ThrowIfNull(columnNames);
+
+        if (columnNames.Length == 0)
+        {
+            throw new ArgumentException("At least one column name must be selected.", nameof(columnNames));
+        }
+
+        var selectedNames = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        var selectedColumns = new ISeries[columnNames.Length];
+        var selectedSchemaColumns = new ColumnSchema[columnNames.Length];
+
+        for (var index = 0; index < columnNames.Length; index++)
+        {
+            var columnName = columnNames[index];
+            ArgumentException.ThrowIfNullOrWhiteSpace(columnName);
+
+            if (!selectedNames.Add(columnName))
+            {
+                throw new ArgumentException($"Column '{columnName}' was selected more than once.", nameof(columnNames));
+            }
+
+            var column = GetColumn(columnName);
+            var schemaColumn = Schema.GetColumn(column.Name);
+
+            selectedColumns[index] = column;
+            selectedSchemaColumns[index] = ColumnSchema.Create(
+                schemaColumn.Name,
+                schemaColumn.DataType,
+                schemaColumn.IsNullable,
+                index);
+        }
+
+        var schema = DataFrameSchema.Create(selectedSchemaColumns);
+        return new DataFrame(schema, Array.AsReadOnly(selectedColumns));
+    }
+
+    /// <summary>
     /// Gets the column with the specified name using case-insensitive lookup.
     /// </summary>
     /// <param name="columnName">The column name to find.</param>
