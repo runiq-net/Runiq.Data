@@ -7,7 +7,7 @@ using Runiq.Data.Series;
 namespace Runiq.Data;
 
 /// <summary>
-/// Represents an immutable, column-oriented table of named, equally sized series.
+/// Represents a column-oriented table of named, equally sized series.
 /// </summary>
 /// <remarks>
 /// <para>
@@ -18,7 +18,10 @@ namespace Runiq.Data;
 /// <para>
 /// A DataFrame owns snapshots of the supplied column values, preserves column order, requires
 /// all columns to have the same row count, and performs column lookup using case-insensitive
-/// names for convenience.
+/// names for convenience. Transformation methods such as <see cref="Select(string[])"/>,
+/// <see cref="Drop(string[])"/>, <see cref="RenameColumn(string, string)"/>, and
+/// <see cref="WithColumn{T}(string, IEnumerable{T})"/> return new DataFrame instances. Methods
+/// with explicit mutable names update the current instance.
 /// </para>
 /// </remarks>
 public sealed class DataFrame
@@ -26,36 +29,40 @@ public sealed class DataFrame
     private static readonly MethodInfo CreateSeriesMethod = typeof(DataFrame)
         .GetMethod(nameof(CreateSeries), BindingFlags.NonPublic | BindingFlags.Static)!;
 
-    private readonly IReadOnlyDictionary<string, ISeries> columnsByName;
+    private DataFrameSchema schema;
+    private ReadOnlyCollection<ISeries> columns;
+    private IReadOnlyDictionary<string, ISeries> columnsByName;
+    private int rowCount;
+    private int columnCount;
 
     private DataFrame(DataFrameSchema schema, ReadOnlyCollection<ISeries> columns)
     {
-        Schema = schema;
-        Columns = columns;
-        ColumnCount = columns.Count;
-        RowCount = columns.Count == 0 ? 0 : columns[0].Count;
-        columnsByName = columns.ToDictionary(static column => column.Name, StringComparer.OrdinalIgnoreCase);
+        this.schema = schema;
+        this.columns = columns;
+        columnCount = columns.Count;
+        rowCount = columns.Count == 0 ? 0 : columns[0].Count;
+        columnsByName = CreateColumnLookup(columns);
     }
 
     /// <summary>
     /// Gets the schema inferred from the DataFrame columns or supplied during schema-first creation.
     /// </summary>
-    public DataFrameSchema Schema { get; }
+    public DataFrameSchema Schema => schema;
 
     /// <summary>
     /// Gets the DataFrame columns in schema order.
     /// </summary>
-    public IReadOnlyList<ISeries> Columns { get; }
+    public IReadOnlyList<ISeries> Columns => columns;
 
     /// <summary>
     /// Gets the number of rows in each DataFrame column.
     /// </summary>
-    public int RowCount { get; }
+    public int RowCount => rowCount;
 
     /// <summary>
     /// Gets the number of columns in the DataFrame.
     /// </summary>
-    public int ColumnCount { get; }
+    public int ColumnCount => columnCount;
 
     /// <summary>
     /// Gets the column with the specified name using case-insensitive lookup.
@@ -74,7 +81,7 @@ public sealed class DataFrame
     public ISeries this[string columnName] => GetColumn(columnName);
 
     /// <summary>
-    /// Creates an immutable DataFrame from public readable properties on an object.
+    /// Creates a DataFrame from public readable properties on an object.
     /// </summary>
     /// <param name="columns">
     /// An anonymous or simple object whose public readable properties provide column names and
@@ -101,7 +108,7 @@ public sealed class DataFrame
     }
 
     /// <summary>
-    /// Creates an immutable DataFrame from an object while validating against an expected schema.
+    /// Creates a DataFrame from an object while validating against an expected schema.
     /// </summary>
     /// <param name="schema">The expected schema that controls final column order.</param>
     /// <param name="columns">
@@ -339,6 +346,143 @@ public sealed class DataFrame
     }
 
     /// <summary>
+    /// Adds a column and returns a new DataFrame without mutating the source instance.
+    /// </summary>
+    /// <typeparam name="T">The CLR type of each value in the new column.</typeparam>
+    /// <param name="name">The canonical name of the column to append.</param>
+    /// <param name="values">The values to snapshot into the new column.</param>
+    /// <returns>
+    /// A new DataFrame with the supplied column appended after the existing columns.
+    /// </returns>
+    /// <remarks>
+    /// The existing schema, column order, values, data types, and nullability metadata are
+    /// preserved. Column name conflicts are detected using case-insensitive comparison.
+    /// </remarks>
+    /// <exception cref="ArgumentException">
+    /// Thrown when <paramref name="name"/> is empty or whitespace, when the name conflicts with
+    /// an existing column, when <paramref name="values"/> is a string, or when the value count
+    /// does not match <see cref="RowCount"/>.
+    /// </exception>
+    /// <exception cref="ArgumentNullException">
+    /// Thrown when <paramref name="name"/> or <paramref name="values"/> is <see langword="null"/>.
+    /// </exception>
+    public DataFrame WithColumn<T>(string name, IEnumerable<T> values)
+    {
+        var column = CreateAddedColumn(name, values);
+        var addedColumns = columns.Concat([column]).ToArray();
+        var addedSchemaColumns = CreateSchemaColumns(addedColumns);
+        var addedSchema = DataFrameSchema.Create(addedSchemaColumns);
+
+        return new DataFrame(addedSchema, Array.AsReadOnly(addedColumns));
+    }
+
+    /// <summary>
+    /// Adds a column to the current DataFrame instance.
+    /// </summary>
+    /// <typeparam name="T">The CLR type of each value in the new column.</typeparam>
+    /// <param name="name">The canonical name of the column to append.</param>
+    /// <param name="values">The values to snapshot into the new column.</param>
+    /// <remarks>
+    /// This method mutates the current DataFrame by appending a new read-only column and updating
+    /// the schema. Existing columns, values, data types, and nullability metadata are preserved.
+    /// </remarks>
+    /// <exception cref="ArgumentException">
+    /// Thrown when <paramref name="name"/> is empty or whitespace, when the name conflicts with
+    /// an existing column, when <paramref name="values"/> is a string, or when the value count
+    /// does not match <see cref="RowCount"/>.
+    /// </exception>
+    /// <exception cref="ArgumentNullException">
+    /// Thrown when <paramref name="name"/> or <paramref name="values"/> is <see langword="null"/>.
+    /// </exception>
+    public void AddColumn<T>(string name, IEnumerable<T> values)
+    {
+        var column = CreateAddedColumn(name, values);
+        var addedColumns = columns.Concat([column]).ToArray();
+
+        ReplaceState(addedColumns);
+    }
+
+    /// <summary>
+    /// Removes a column from the current DataFrame instance.
+    /// </summary>
+    /// <param name="columnName">The name of the column to remove, matched case-insensitively.</param>
+    /// <remarks>
+    /// This method mutates the current DataFrame and rejects missing columns. Removing the final
+    /// remaining column is rejected because a DataFrame schema must contain at least one column.
+    /// </remarks>
+    /// <exception cref="ArgumentException">
+    /// Thrown when <paramref name="columnName"/> is empty or whitespace, or when removing the
+    /// column would leave the DataFrame without any columns.
+    /// </exception>
+    /// <exception cref="ArgumentNullException">
+    /// Thrown when <paramref name="columnName"/> is <see langword="null"/>.
+    /// </exception>
+    /// <exception cref="KeyNotFoundException">
+    /// Thrown when <paramref name="columnName"/> does not match an existing column.
+    /// </exception>
+    public void RemoveColumn(string columnName)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(columnName);
+
+        if (!columnsByName.ContainsKey(columnName))
+        {
+            throw new KeyNotFoundException($"Column '{columnName}' does not exist in the DataFrame.");
+        }
+
+        if (columnCount == 1)
+        {
+            throw new ArgumentException(
+                "Removing the last remaining column is not supported because a DataFrame schema must contain at least one column.",
+                nameof(columnName));
+        }
+
+        var remainingColumns = columns
+            .Where(column => !StringComparer.OrdinalIgnoreCase.Equals(column.Name, columnName))
+            .ToArray();
+
+        ReplaceState(remainingColumns);
+    }
+
+    /// <summary>
+    /// Renames a column on the current DataFrame instance.
+    /// </summary>
+    /// <param name="currentName">The existing column name to rename, matched case-insensitively.</param>
+    /// <param name="newName">The canonical column name to store after the rename.</param>
+    /// <remarks>
+    /// This method mutates the current DataFrame while preserving row count, column count, column
+    /// order, values, data types, and nullability metadata. Renaming only the casing of the same
+    /// column is allowed.
+    /// </remarks>
+    /// <exception cref="ArgumentException">
+    /// Thrown when either name is empty or whitespace, or when <paramref name="newName"/>
+    /// conflicts with another existing column.
+    /// </exception>
+    /// <exception cref="ArgumentNullException">
+    /// Thrown when <paramref name="currentName"/> or <paramref name="newName"/> is
+    /// <see langword="null"/>.
+    /// </exception>
+    /// <exception cref="KeyNotFoundException">
+    /// Thrown when <paramref name="currentName"/> does not match an existing column.
+    /// </exception>
+    public void RenameColumnInPlace(string currentName, string newName)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(currentName);
+        ArgumentException.ThrowIfNullOrWhiteSpace(newName);
+
+        var sourceColumn = GetColumn(currentName);
+        if (columnsByName.TryGetValue(newName, out var conflictingColumn) && !ReferenceEquals(sourceColumn, conflictingColumn))
+        {
+            throw new ArgumentException($"Column '{newName}' conflicts with an existing DataFrame column.", nameof(newName));
+        }
+
+        var renamedColumns = columns
+            .Select(column => ReferenceEquals(column, sourceColumn) ? CreateSeriesWithName(newName, column) : column)
+            .ToArray();
+
+        ReplaceState(renamedColumns);
+    }
+
+    /// <summary>
     /// Gets the column with the specified name using case-insensitive lookup.
     /// </summary>
     /// <param name="columnName">The column name to find.</param>
@@ -474,6 +618,56 @@ public sealed class DataFrame
     private static ISeries CreateSeries<T>(string name, IEnumerable<T> values)
     {
         return Series<T>.Create(name, values);
+    }
+
+    private static IReadOnlyDictionary<string, ISeries> CreateColumnLookup(IEnumerable<ISeries> columns)
+    {
+        return columns.ToDictionary(static column => column.Name, StringComparer.OrdinalIgnoreCase);
+    }
+
+    private static ColumnSchema[] CreateSchemaColumns(IReadOnlyList<ISeries> columns)
+    {
+        return columns
+            .Select((column, ordinal) => ColumnSchema.Create(column.Name, column.DataType, column.IsNullable, ordinal))
+            .ToArray();
+    }
+
+    private ISeries CreateAddedColumn<T>(string name, IEnumerable<T> values)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(name);
+        ArgumentNullException.ThrowIfNull(values);
+
+        if (values is string)
+        {
+            throw new ArgumentException($"Column '{name}' must be an enumerable value collection, not a string.", nameof(values));
+        }
+
+        if (columnsByName.ContainsKey(name))
+        {
+            throw new ArgumentException($"Column '{name}' conflicts with an existing DataFrame column.", nameof(name));
+        }
+
+        var column = Series<T>.Create(name, values);
+        if (column.Count != rowCount)
+        {
+            throw new ArgumentException(
+                $"Column '{name}' contains {column.Count} values, but the DataFrame expects {rowCount} values.",
+                nameof(values));
+        }
+
+        return column;
+    }
+
+    private void ReplaceState(ISeries[] updatedColumns)
+    {
+        // All DataFrame mutations flow through a complete state replacement so public
+        // Columns, Schema, counts, and case-insensitive lookup stay in sync.
+        var updatedSchema = DataFrameSchema.Create(CreateSchemaColumns(updatedColumns));
+        schema = updatedSchema;
+        columns = Array.AsReadOnly(updatedColumns);
+        columnCount = updatedColumns.Length;
+        rowCount = updatedColumns.Length == 0 ? 0 : updatedColumns[0].Count;
+        columnsByName = CreateColumnLookup(updatedColumns);
     }
 
     private static ISeries CreateSeriesWithName(string name, ISeries column)
