@@ -103,6 +103,21 @@ public sealed class DataFrameRowTests
     }
 
     /// <summary>
+    /// Verifies that direct row access keeps returning raw cell values.
+    /// </summary>
+    [Fact]
+    public void DataFrameRowIndexer_WhenReadingExistingColumn_ReturnsRawValueForBackwardCompatibility()
+    {
+        // This test verifies that direct row access keeps returning raw cell values instead of filtering-specific CellValue wrappers.
+        var row = CreatePeopleDataFrame().GetRow(0);
+
+        Assert.IsType<int>(row["Age"]);
+        Assert.IsType<string>(row["Name"]);
+        Assert.Equal(30, row["Age"]);
+        Assert.Equal("Ali", row["Name"]);
+    }
+
+    /// <summary>
     /// Verifies that missing row indexer columns are rejected.
     /// </summary>
     [Fact]
