@@ -316,6 +316,38 @@ public sealed class DataFrame
     }
 
     /// <summary>
+    /// Returns a new DataFrame containing the first specified number of rows while preserving the current schema.
+    /// </summary>
+    /// <param name="count">The maximum number of rows to include.</param>
+    /// <returns>
+    /// A new DataFrame with up to <paramref name="count"/> rows from the beginning of the current DataFrame.
+    /// The current DataFrame is not modified.
+    /// </returns>
+    /// <exception cref="ArgumentOutOfRangeException">
+    /// Thrown when <paramref name="count"/> is negative.
+    /// </exception>
+    public DataFrame Head(int count)
+    {
+        return TakeLeadingRows(count);
+    }
+
+    /// <summary>
+    /// Returns a new DataFrame containing the first specified number of rows while preserving the current schema.
+    /// </summary>
+    /// <param name="count">The maximum number of rows to include.</param>
+    /// <returns>
+    /// A new DataFrame with up to <paramref name="count"/> rows from the beginning of the current DataFrame.
+    /// The current DataFrame is not modified.
+    /// </returns>
+    /// <exception cref="ArgumentOutOfRangeException">
+    /// Thrown when <paramref name="count"/> is negative.
+    /// </exception>
+    public DataFrame Take(int count)
+    {
+        return TakeLeadingRows(count);
+    }
+
+    /// <summary>
     /// Filters rows into a new immutable DataFrame using a read-only row predicate.
     /// </summary>
     /// <param name="predicate">
@@ -848,6 +880,33 @@ public sealed class DataFrame
         for (var index = 0; index < rowIndexes.Count; index++)
         {
             values.SetValue(column.GetValue(rowIndexes[index]), index);
+        }
+
+        var genericCreateMethod = CreateSeriesMethod.MakeGenericMethod(column.DataType);
+        return (ISeries)genericCreateMethod.Invoke(null, [column.Name, values])!;
+    }
+
+    private DataFrame TakeLeadingRows(int count)
+    {
+        if (count < 0)
+        {
+            throw new ArgumentOutOfRangeException(nameof(count), count, "Row limit count must be zero or greater.");
+        }
+
+        var resultRowCount = Math.Min(count, rowCount);
+        var limitedColumns = columns
+            .Select(column => CreateLeadingSeries(column, resultRowCount))
+            .ToArray();
+
+        return new DataFrame(schema, Array.AsReadOnly(limitedColumns));
+    }
+
+    private static ISeries CreateLeadingSeries(ISeries column, int count)
+    {
+        var values = Array.CreateInstance(column.DataType, count);
+        for (var index = 0; index < count; index++)
+        {
+            values.SetValue(column.GetValue(index), index);
         }
 
         var genericCreateMethod = CreateSeriesMethod.MakeGenericMethod(column.DataType);
