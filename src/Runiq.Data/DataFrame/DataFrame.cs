@@ -21,9 +21,9 @@ namespace Runiq.Data;
 /// names for convenience. Projection methods such as <see cref="Select(string[])"/> and
 /// <see cref="Drop(string[])"/> return new DataFrame instances. Direct mutation methods such as
 /// <see cref="AddColumn{T}(string, IEnumerable{T})"/>, <see cref="RemoveColumn(string)"/>,
-/// <see cref="RenameColumn(string, string)"/>, <see cref="AddRow(object)"/>, and
-/// <see cref="UpdateRow(int, object)"/> update the
-/// current instance. Call <see cref="Copy"/> first when a separate mutable branch is needed.
+/// <see cref="RenameColumn(string, string)"/>, and row operations accessed through
+/// <see cref="Rows"/> update the current instance. Call <see cref="Copy"/> first when a
+/// separate mutable branch is needed.
 /// </para>
 /// </remarks>
 public sealed class DataFrame
@@ -44,6 +44,7 @@ public sealed class DataFrame
         columnCount = columns.Count;
         rowCount = columns.Count == 0 ? 0 : columns[0].Count;
         columnsByName = CreateColumnLookup(columns);
+        Rows = new DataFrameRows(this);
     }
 
     /// <summary>
@@ -65,6 +66,16 @@ public sealed class DataFrame
     /// Gets the number of columns in the DataFrame.
     /// </summary>
     public int ColumnCount => columnCount;
+
+    /// <summary>
+    /// Gets the row operation facade for mutating rows on the current DataFrame instance.
+    /// </summary>
+    /// <remarks>
+    /// Operations exposed through this facade append, replace, or remove rows in place while
+    /// preserving the DataFrame schema and column order. Call <see cref="Copy"/> first when a
+    /// separate mutable branch is needed.
+    /// </remarks>
+    public DataFrameRows Rows { get; }
 
     /// <summary>
     /// Gets the column with the specified name using case-insensitive lookup.
@@ -201,11 +212,10 @@ public sealed class DataFrame
     /// <remarks>
     /// The returned DataFrame owns new column snapshots, so mutating the copy with
     /// <see cref="AddColumn{T}(string, IEnumerable{T})"/>, <see cref="RemoveColumn(string)"/>,
-    /// <see cref="RenameColumn(string, string)"/>, <see cref="AddRow(object)"/>, or
-    /// <see cref="UpdateRow(int, object)"/> does not
-    /// mutate the original instance. Mutating the original after copying likewise does not mutate
-    /// the copy. Use this method when immutable-style workflows need an explicit branch before
-    /// applying direct mutations.
+    /// <see cref="RenameColumn(string, string)"/>, or operations accessed through
+    /// <see cref="Rows"/> does not mutate the original instance. Mutating the original after
+    /// copying likewise does not mutate the copy. Use this method when immutable-style workflows
+    /// need an explicit branch before applying direct mutations.
     /// </remarks>
     public DataFrame Copy()
     {
@@ -484,27 +494,7 @@ public sealed class DataFrame
         ReplaceState(addedColumns);
     }
 
-    /// <summary>
-    /// Appends one row to the current DataFrame instance.
-    /// </summary>
-    /// <param name="row">
-    /// An anonymous or simple object whose public readable properties exactly match the current
-    /// DataFrame columns by name.
-    /// </param>
-    /// <remarks>
-    /// This method mutates the current DataFrame by appending the row at the end while preserving
-    /// the existing schema, column order, column types, nullability metadata, and existing row
-    /// order. Validation fails fast when <paramref name="row"/> is <see langword="null"/>, when
-    /// any existing column is missing, when extra properties are supplied, or when a value is not
-    /// compatible with the target column type and nullability contract.
-    /// </remarks>
-    /// <exception cref="ArgumentException">
-    /// Thrown when the row does not exactly match the DataFrame schema or contains incompatible values.
-    /// </exception>
-    /// <exception cref="ArgumentNullException">
-    /// Thrown when <paramref name="row"/> is <see langword="null"/>.
-    /// </exception>
-    public void AddRow(object row)
+    internal void AppendRowCore(object row)
     {
         var rowValues = CreateValidatedRowValues(row);
         var appendedColumns = columns
@@ -516,37 +506,26 @@ public sealed class DataFrame
         columnsByName = CreateColumnLookup(appendedColumns);
     }
 
-    /// <summary>
-    /// Replaces the full row at the specified zero-based index by mutating the current DataFrame.
-    /// </summary>
-    /// <param name="index">The zero-based row index to replace.</param>
-    /// <param name="row">
-    /// An anonymous or simple object whose public readable properties exactly match the current
-    /// DataFrame columns.
-    /// </param>
-    /// <remarks>
-    /// The DataFrame instance, row count, column count, column order, schema, column types, and
-    /// nullability metadata are preserved. Validation fails fast when <paramref name="index"/> is
-    /// outside the current row range, when <paramref name="row"/> is <see langword="null"/>, when
-    /// any required field is missing, when any extra field is supplied, or when a value is not
-    /// compatible with the target column type.
-    /// </remarks>
-    /// <exception cref="ArgumentException">
-    /// Thrown when the row does not exactly match the DataFrame schema or contains incompatible values.
-    /// </exception>
-    /// <exception cref="ArgumentNullException">
-    /// Thrown when <paramref name="row"/> is <see langword="null"/>.
-    /// </exception>
-    /// <exception cref="ArgumentOutOfRangeException">
-    /// Thrown when <paramref name="index"/> is negative or outside the DataFrame row range.
-    /// </exception>
-    public void UpdateRow(int index, object row)
+    internal void ReplaceRowCore(int index, object row)
     {
         ValidateRowIndex(index);
 
         var rowValues = CreateValidatedRowValues(row);
         var updatedColumns = columns
             .Select(column => CreateUpdatedSeries(column, index, rowValues[column.Name]))
+            .ToArray();
+
+        columns = Array.AsReadOnly(updatedColumns);
+        rowCount = updatedColumns.Length == 0 ? 0 : updatedColumns[0].Count;
+        columnsByName = CreateColumnLookup(updatedColumns);
+    }
+
+    internal void DeleteRowCore(int index)
+    {
+        ValidateRowIndex(index);
+
+        var updatedColumns = columns
+            .Select(column => CreateRemovedSeries(column, index))
             .ToArray();
 
         columns = Array.AsReadOnly(updatedColumns);
@@ -939,6 +918,25 @@ public sealed class DataFrame
         for (var index = 0; index < column.Count; index++)
         {
             values.SetValue(index == rowIndex ? updatedValue : column.GetValue(index), index);
+        }
+
+        var genericCreateMethod = CreateSeriesMethod.MakeGenericMethod(column.DataType);
+        return (ISeries)genericCreateMethod.Invoke(null, [column.Name, values])!;
+    }
+
+    private static ISeries CreateRemovedSeries(ISeries column, int rowIndex)
+    {
+        var values = Array.CreateInstance(column.DataType, column.Count - 1);
+        var targetIndex = 0;
+        for (var index = 0; index < column.Count; index++)
+        {
+            if (index == rowIndex)
+            {
+                continue;
+            }
+
+            values.SetValue(column.GetValue(index), targetIndex);
+            targetIndex++;
         }
 
         var genericCreateMethod = CreateSeriesMethod.MakeGenericMethod(column.DataType);
