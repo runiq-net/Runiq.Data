@@ -78,45 +78,48 @@ public sealed class DataFrameColumnTypeTests
     }
 
     /// <summary>
-    /// Verifies that generic type checks work after immutable rename.
+    /// Verifies that generic type checks work after mutable rename.
     /// </summary>
     [Fact]
     public void HasColumnTypeGeneric_AfterRenameColumn_ReturnsExpectedResults()
     {
-        // Verifies that renamed DataFrames rebuild lookup data used by type checks.
+        // Verifies that mutable rename rebuilds lookup data used by type checks.
         var df = CreatePeopleDataFrame();
 
-        var renamed = df.RenameColumn("Age", "Years");
-
-        Assert.True(renamed.HasColumnType<int>("years"));
-        Assert.False(renamed.HasColumnType<int>("Age"));
-    }
-
-    /// <summary>
-    /// Verifies that generic type checks work after mutable rename.
-    /// </summary>
-    [Fact]
-    public void HasColumnTypeGeneric_AfterRenameColumnInPlace_ReturnsExpectedResults()
-    {
-        // Verifies that mutable rename keeps type checks synchronized with current columns.
-        var df = CreatePeopleDataFrame();
-
-        df.RenameColumnInPlace("Age", "Years");
+        df.RenameColumn("Age", "Years");
 
         Assert.True(df.HasColumnType<int>("years"));
         Assert.False(df.HasColumnType<int>("Age"));
     }
 
     /// <summary>
-    /// Verifies that generic type checks work after immutable add-column.
+    /// Verifies that generic type checks work after copy plus mutable rename.
     /// </summary>
     [Fact]
-    public void HasColumnTypeGeneric_AfterWithColumn_ReturnsExpectedResults()
+    public void HasColumnTypeGeneric_AfterCopyThenRenameColumn_ReturnsExpectedResults()
     {
-        // Verifies that type checks include columns added through immutable enrichment.
+        // Verifies that copy plus rename keeps type checks isolated from the source branch.
         var df = CreatePeopleDataFrame();
+        var renamed = df.Copy();
 
-        var enriched = df.WithColumn("Active", new[] { true, false });
+        renamed.RenameColumn("Age", "Years");
+
+        Assert.True(renamed.HasColumnType<int>("years"));
+        Assert.False(renamed.HasColumnType<int>("Age"));
+        Assert.True(df.HasColumnType<int>("Age"));
+    }
+
+    /// <summary>
+    /// Verifies that generic type checks work after copy plus add-column.
+    /// </summary>
+    [Fact]
+    public void HasColumnTypeGeneric_AfterCopyThenAddColumn_ReturnsExpectedResults()
+    {
+        // Verifies that immutable-style enrichment uses Copy plus direct mutation.
+        var df = CreatePeopleDataFrame();
+        var enriched = df.Copy();
+
+        enriched.AddColumn("Active", new[] { true, false });
 
         Assert.True(enriched.HasColumnType<bool>("active"));
         Assert.False(df.HasColumnType<bool>("Active"));
@@ -128,7 +131,7 @@ public sealed class DataFrameColumnTypeTests
     [Fact]
     public void HasColumnTypeGeneric_AfterAddColumn_ReturnsExpectedResults()
     {
-        // Verifies that type checks include columns added through explicit mutation.
+        // Verifies that type checks include columns added through direct mutation.
         var df = CreatePeopleDataFrame();
 
         df.AddColumn("Active", new[] { true, false });
@@ -357,19 +360,21 @@ public sealed class DataFrameColumnTypeTests
     }
 
     /// <summary>
-    /// Verifies that generic required lookup works after immutable add-column.
+    /// Verifies that generic required lookup works after copy plus add-column.
     /// </summary>
     [Fact]
-    public void RequireColumnGeneric_AfterWithColumn_ReturnsColumn()
+    public void RequireColumnGeneric_AfterCopyThenAddColumn_ReturnsColumn()
     {
-        // Verifies that typed required lookup includes columns added immutably.
+        // Verifies that typed required lookup includes columns added through Copy plus mutation.
         var df = CreatePeopleDataFrame();
+        var enriched = df.Copy();
 
-        var enriched = df.WithColumn("Active", new[] { true, false });
+        enriched.AddColumn("Active", new[] { true, false });
         var column = enriched.RequireColumn<bool>("active");
 
         Assert.Equal("Active", column.Name);
         Assert.Equal(typeof(bool), column.DataType);
+        Assert.False(df.HasColumn("Active"));
     }
 
     /// <summary>

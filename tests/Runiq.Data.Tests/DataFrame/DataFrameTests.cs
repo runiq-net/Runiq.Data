@@ -747,7 +747,7 @@ public sealed class DataFrameTests
     [Fact]
     public void RenameColumn_WithOneColumn_RenamesColumnAndPreservesShapeValuesAndMetadata()
     {
-        // Verifies that rename changes the canonical name without changing rows, order, values, or metadata.
+        // Verifies that mutable rename changes the canonical name without changing rows, order, values, or metadata.
         var df = global::Runiq.Data.DataFrame.Create(new
         {
             cust_id = new[] { 1, 2, 3 },
@@ -755,13 +755,12 @@ public sealed class DataFrameTests
             score = new int?[] { 10, null, 30 }
         });
 
-        var renamed = df.RenameColumn("cust_id", "CustomerId");
+        df.RenameColumn("cust_id", "CustomerId");
 
-        Assert.NotSame(df, renamed);
-        Assert.Equal(3, renamed.RowCount);
-        Assert.Equal(3, renamed.ColumnCount);
+        Assert.Equal(3, df.RowCount);
+        Assert.Equal(3, df.ColumnCount);
         Assert.Collection(
-            renamed.Columns,
+            df.Columns,
             column =>
             {
                 Assert.Equal("CustomerId", column.Name);
@@ -778,7 +777,7 @@ public sealed class DataFrameTests
                 Assert.True(column.IsNullable);
             });
         Assert.Collection(
-            renamed.Schema.Columns,
+            df.Schema.Columns,
             column =>
             {
                 Assert.Equal("CustomerId", column.Name);
@@ -796,22 +795,23 @@ public sealed class DataFrameTests
                 Assert.Equal("score", column.Name);
                 Assert.Equal(2, column.Ordinal);
             });
-        Assert.True(renamed.HasColumn("CustomerId"));
-        Assert.False(renamed.HasColumn("cust_id"));
-        Assert.Equal("CustomerId", renamed["CustomerId"].Name);
-        Assert.Throws<KeyNotFoundException>(() => renamed.GetColumn("cust_id"));
+        Assert.True(df.HasColumn("CustomerId"));
+        Assert.False(df.HasColumn("cust_id"));
+        Assert.Equal("CustomerId", df["CustomerId"].Name);
+        Assert.Throws<KeyNotFoundException>(() => df.GetColumn("cust_id"));
     }
 
     /// <summary>
-    /// Verifies that renaming does not modify the original DataFrame.
+    /// Verifies that copy plus rename does not modify the original DataFrame.
     /// </summary>
     [Fact]
-    public void RenameColumn_DoesNotModifyOriginalDataFrame()
+    public void CopyThenRenameColumn_DoesNotModifyOriginalDataFrame()
     {
-        // Verifies that rename returns a separate DataFrame and leaves the source schema intact.
+        // Verifies that immutable-style rename is explicit Copy plus mutable rename.
         var df = global::Runiq.Data.DataFrame.Create(new { cust_id = new[] { 1 }, Age = new[] { 30 } });
+        var renamed = df.Copy();
 
-        var renamed = df.RenameColumn("cust_id", "CustomerId");
+        renamed.RenameColumn("cust_id", "CustomerId");
 
         Assert.NotSame(df, renamed);
         Assert.True(df.HasColumn("cust_id"));
@@ -832,18 +832,18 @@ public sealed class DataFrameTests
     [Fact]
     public void RenameColumn_WithDifferentCurrentNameCasing_UsesRequestedCanonicalName()
     {
-        // Verifies that source lookup ignores casing and the result uses the requested new name.
+        // Verifies that source lookup ignores casing and the current DataFrame uses the requested new name.
         var df = global::Runiq.Data.DataFrame.Create(new { cust_id = new[] { 1, 2 }, Age = new[] { 30, 25 } });
 
-        var renamed = df.RenameColumn("CUST_ID", "CustomerId");
+        df.RenameColumn("CUST_ID", "CustomerId");
 
-        Assert.True(renamed.HasColumn("CustomerId"));
-        Assert.True(renamed.HasColumn("customerid"));
-        Assert.False(renamed.HasColumn("cust_id"));
-        Assert.Equal("CustomerId", renamed["CUSTOMERID"].Name);
-        Assert.Equal(2, renamed["customerid"].GetValue(1));
+        Assert.True(df.HasColumn("CustomerId"));
+        Assert.True(df.HasColumn("customerid"));
+        Assert.False(df.HasColumn("cust_id"));
+        Assert.Equal("CustomerId", df["CUSTOMERID"].Name);
+        Assert.Equal(2, df["customerid"].GetValue(1));
         Assert.Collection(
-            renamed.Columns,
+            df.Columns,
             column => Assert.Equal("CustomerId", column.Name),
             column => Assert.Equal("Age", column.Name));
     }
@@ -857,13 +857,13 @@ public sealed class DataFrameTests
         // Verifies that same-column casing changes are not treated as conflicts.
         var df = global::Runiq.Data.DataFrame.Create(new { age = new[] { 30, 25 }, Name = new[] { "Ali", "Ayse" } });
 
-        var renamed = df.RenameColumn("age", "Age");
+        df.RenameColumn("age", "Age");
 
-        Assert.True(renamed.HasColumn("Age"));
-        Assert.True(renamed.HasColumn("age"));
-        Assert.Equal("Age", renamed.GetColumn("age").Name);
-        Assert.Equal("Age", renamed.Schema.GetColumn("age").Name);
-        Assert.Equal(30, renamed["Age"].GetValue(0));
+        Assert.True(df.HasColumn("Age"));
+        Assert.True(df.HasColumn("age"));
+        Assert.Equal("Age", df.GetColumn("age").Name);
+        Assert.Equal("Age", df.Schema.GetColumn("age").Name);
+        Assert.Equal(30, df["Age"].GetValue(0));
     }
 
     /// <summary>
@@ -941,26 +941,6 @@ public sealed class DataFrameTests
 
         Assert.Contains("name", exception.Message);
         Assert.Contains("conflicts", exception.Message);
-    }
-
-    /// <summary>
-    /// Verifies that renamed DataFrames remain immutable through the public API.
-    /// </summary>
-    [Fact]
-    public void RenameColumn_ResultDoesNotExposePublicMutation()
-    {
-        // Verifies that rename results expose read-only state like created DataFrames.
-        var df = global::Runiq.Data.DataFrame.Create(new { Age = new[] { 30 }, Name = new[] { "Ali" } });
-
-        var renamed = df.RenameColumn("Age", "Years");
-        var writableProperties = renamed.GetType()
-            .GetProperties(BindingFlags.Instance | BindingFlags.Public)
-            .Where(static property => property.SetMethod is not null)
-            .Select(static property => property.Name);
-
-        Assert.NotSame(df, renamed);
-        Assert.False(renamed.Columns is ICollection<ISeries> { IsReadOnly: false });
-        Assert.Empty(writableProperties);
     }
 
     /// <summary>
