@@ -42,6 +42,60 @@ public readonly struct CellValue : IEquatable<CellValue>
     public object? Value { get; }
 
     /// <summary>
+    /// Determines whether the underlying string cell value contains the specified substring.
+    /// </summary>
+    /// <param name="value">The substring to search for.</param>
+    /// <returns><see langword="true"/> when the string cell value contains the specified substring.</returns>
+    /// <exception cref="ArgumentNullException">
+    /// Thrown when <paramref name="value"/> is <see langword="null"/>.
+    /// </exception>
+    /// <exception cref="ArgumentException">
+    /// Thrown when the cell value is not a string.
+    /// </exception>
+    public bool Contains(string value)
+    {
+        ArgumentNullException.ThrowIfNull(value);
+
+        return Require<string>().Contains(value);
+    }
+
+    /// <summary>
+    /// Determines whether the underlying string cell value starts with the specified prefix.
+    /// </summary>
+    /// <param name="value">The prefix to compare with the start of the string cell value.</param>
+    /// <returns><see langword="true"/> when the string cell value starts with the specified prefix.</returns>
+    /// <exception cref="ArgumentNullException">
+    /// Thrown when <paramref name="value"/> is <see langword="null"/>.
+    /// </exception>
+    /// <exception cref="ArgumentException">
+    /// Thrown when the cell value is not a string.
+    /// </exception>
+    public bool StartsWith(string value)
+    {
+        ArgumentNullException.ThrowIfNull(value);
+
+        return Require<string>().StartsWith(value);
+    }
+
+    /// <summary>
+    /// Determines whether the underlying string cell value ends with the specified suffix.
+    /// </summary>
+    /// <param name="value">The suffix to compare with the end of the string cell value.</param>
+    /// <returns><see langword="true"/> when the string cell value ends with the specified suffix.</returns>
+    /// <exception cref="ArgumentNullException">
+    /// Thrown when <paramref name="value"/> is <see langword="null"/>.
+    /// </exception>
+    /// <exception cref="ArgumentException">
+    /// Thrown when the cell value is not a string.
+    /// </exception>
+    public bool EndsWith(string value)
+    {
+        ArgumentNullException.ThrowIfNull(value);
+
+        return Require<string>().EndsWith(value);
+    }
+
+    /// <summary>
     /// Compares an integer cell value to an integer literal and throws for incompatible types.
     /// </summary>
     /// <param name="left">The DataFrame cell value to compare.</param>
