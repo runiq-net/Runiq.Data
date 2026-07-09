@@ -3,7 +3,7 @@ namespace Runiq.Data.Tests.DataFrame;
 /// <summary>
 /// Verifies read-only row access behavior on DataFrame.
 /// </summary>
-public sealed class DataFrameRowTests
+public sealed class RowTests
 {
     /// <summary>
     /// Verifies that GetRow returns a row view for a valid index.
@@ -106,7 +106,7 @@ public sealed class DataFrameRowTests
     /// Verifies that direct row access keeps returning raw cell values.
     /// </summary>
     [Fact]
-    public void DataFrameRowIndexer_WhenReadingExistingColumn_ReturnsRawValueForBackwardCompatibility()
+    public void RowIndexer_WhenReadingExistingColumn_ReturnsRawValueForBackwardCompatibility()
     {
         // This test verifies that direct row access keeps returning raw cell values instead of filtering-specific CellValue wrappers.
         var row = CreatePeopleDataFrame().GetRow(0);
@@ -381,7 +381,7 @@ public sealed class DataFrameRowTests
     /// Verifies that ColumnNames follows the current DataFrame column state.
     /// </summary>
     [Fact]
-    public void ColumnNames_AfterDataFrameColumnMutation_ReturnsCurrentColumnNames()
+    public void ColumnNames_AfterColumnMutation_ReturnsCurrentColumnNames()
     {
         // This test verifies that row metadata stays aligned with live DataFrame column access.
         var df = CreatePeopleDataFrame();

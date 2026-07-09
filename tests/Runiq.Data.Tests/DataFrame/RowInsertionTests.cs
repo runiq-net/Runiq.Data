@@ -3,7 +3,7 @@ namespace Runiq.Data.Tests.DataFrame;
 /// <summary>
 /// Verifies direct row append behavior on DataFrame.
 /// </summary>
-public sealed class DataFrameRowInsertionTests
+public sealed class RowInsertionTests
 {
     /// <summary>
     /// Verifies that RowsAdd appends a row by mutating the current DataFrame.

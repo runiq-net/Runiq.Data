@@ -42,8 +42,8 @@ public sealed class DataFrame
         columnCount = columns.Count;
         rowCount = columns.Count == 0 ? 0 : columns[0].Count;
         columnsByName = CreateColumnLookup(columns);
-        Columns = new DataFrameColumns(this);
-        Rows = new DataFrameRows(this);
+        Columns = new ColumnOperations(this);
+        Rows = new RowOperations(this);
     }
 
     /// <summary>
@@ -59,7 +59,7 @@ public sealed class DataFrame
     /// preserving row order and validating names, conflicts, and value counts before mutation.
     /// Call <see cref="Copy"/> first when a separate mutable branch is needed.
     /// </remarks>
-    public DataFrameColumns Columns { get; }
+    public ColumnOperations Columns { get; }
 
     /// <summary>
     /// Gets the row operation facade for mutating rows on the current DataFrame instance.
@@ -69,7 +69,7 @@ public sealed class DataFrame
     /// preserving the DataFrame schema and column order. Call <see cref="Copy"/> first when a
     /// separate mutable branch is needed.
     /// </remarks>
-    public DataFrameRows Rows { get; }
+    public RowOperations Rows { get; }
 
     internal IReadOnlyList<ISeries> ColumnSeries => columns;
 
@@ -101,7 +101,7 @@ public sealed class DataFrame
     /// <exception cref="ArgumentOutOfRangeException">
     /// Thrown when <paramref name="index"/> is negative or outside the DataFrame row range.
     /// </exception>
-    public DataFrameRow GetRow(int index)
+    public Row GetRow(int index)
     {
         if (index < 0 || index >= rowCount)
         {
@@ -111,7 +111,7 @@ public sealed class DataFrame
                 $"Row index must be between 0 and {rowCount - 1}, but the DataFrame contains {rowCount} rows.");
         }
 
-        return new DataFrameRow(this, index);
+        return new Row(this, index);
     }
 
     /// <summary>
@@ -395,22 +395,22 @@ public sealed class DataFrame
     /// order as the source DataFrame. The source DataFrame is not modified.
     /// </returns>
     /// <remarks>
-    /// Predicate evaluation uses <see cref="DataFrameFilterRow"/> views so direct
-    /// <see cref="DataFrameRow"/> access can keep returning raw object values. Missing columns,
+    /// Predicate evaluation uses <see cref="FilterRow"/> views so direct
+    /// <see cref="Row"/> access can keep returning raw object values. Missing columns,
     /// invalid column names, unsupported comparisons, and exceptions thrown by the predicate are
     /// not swallowed; they fail the filter operation immediately.
     /// </remarks>
     /// <exception cref="ArgumentNullException">
     /// Thrown when <paramref name="predicate"/> is <see langword="null"/>.
     /// </exception>
-    public DataFrame Filter(Func<DataFrameFilterRow, bool> predicate)
+    public DataFrame Filter(Func<FilterRow, bool> predicate)
     {
         ArgumentNullException.ThrowIfNull(predicate);
 
         var matchingRowIndexes = new List<int>();
         for (var rowIndex = 0; rowIndex < rowCount; rowIndex++)
         {
-            if (predicate(new DataFrameFilterRow(this, rowIndex)))
+            if (predicate(new FilterRow(this, rowIndex)))
             {
                 matchingRowIndexes.Add(rowIndex);
             }

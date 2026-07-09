@@ -3,7 +3,7 @@ namespace Runiq.Data.Tests.DataFrame;
 /// <summary>
 /// Verifies direct column mutation operations on DataFrame.
 /// </summary>
-public sealed class DataFrameColumnOperationTests
+public sealed class ColumnOperationTests
 {
     /// <summary>
     /// Verifies that ColumnsAdd mutates the current DataFrame and appends the column.

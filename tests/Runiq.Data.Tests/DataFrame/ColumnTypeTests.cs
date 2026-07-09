@@ -3,7 +3,7 @@ namespace Runiq.Data.Tests.DataFrame;
 /// <summary>
 /// Verifies developer-friendly column type checks and required column validation helpers.
 /// </summary>
-public sealed class DataFrameColumnTypeTests
+public sealed class ColumnTypeTests
 {
     /// <summary>
     /// Verifies that generic type checks succeed for matching column types.
