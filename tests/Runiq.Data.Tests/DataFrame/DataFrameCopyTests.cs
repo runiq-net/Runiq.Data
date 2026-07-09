@@ -88,16 +88,16 @@ public sealed class DataFrameCopyTests
     }
 
     /// <summary>
-    /// Verifies that mutating a copy with AddRow does not mutate the original.
+    /// Verifies that mutating a copy with RowsAdd does not mutate the original.
     /// </summary>
     [Fact]
-    public void Copy_AddRowOnCopy_DoesNotMutateOriginal()
+    public void Copy_RowsAddOnCopy_DoesNotMutateOriginal()
     {
         // Verifies that row append on a copied branch is isolated.
         var df = CreatePeopleDataFrame();
         var copy = df.Copy();
 
-        copy.AddRow(new { Name = "Zeynep", Age = 29, Score = (int?)40 });
+        copy.Rows.Add(new { Name = "Zeynep", Age = 29, Score = (int?)40 });
 
         Assert.Equal(2, df.RowCount);
         Assert.Equal(3, copy.RowCount);
@@ -116,7 +116,7 @@ public sealed class DataFrameCopyTests
 
         df.AddColumn("Active", new[] { true, false });
         df.RenameColumn("Age", "Years");
-        df.AddRow(new { Name = "Zeynep", Years = 29, Score = (int?)40, Active = true });
+        df.Rows.Add(new { Name = "Zeynep", Years = 29, Score = (int?)40, Active = true });
 
         Assert.Equal(2, copy.RowCount);
         Assert.Equal(3, copy.ColumnCount);

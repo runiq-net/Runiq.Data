@@ -1,20 +1,20 @@
 namespace Runiq.Data.Tests.DataFrame;
 
 /// <summary>
-/// Verifies direct row insertion behavior on DataFrame.
+/// Verifies direct row append behavior on DataFrame.
 /// </summary>
 public sealed class DataFrameRowInsertionTests
 {
     /// <summary>
-    /// Verifies that AddRow appends a row by mutating the current DataFrame.
+    /// Verifies that RowsAdd appends a row by mutating the current DataFrame.
     /// </summary>
     [Fact]
-    public void AddRow_AppendsRowAndMutatesCurrentDataFrame()
+    public void RowsAdd_AppendsRowAndMutatesCurrentDataFrame()
     {
         // Verifies direct mutable row append behavior.
         var df = CreatePeopleDataFrame();
 
-        df.AddRow(new { Name = "Zeynep", Age = 29, Salary = 110000m, IsActive = true });
+        df.Rows.Add(new { Name = "Zeynep", Age = 29, Salary = 110000m, IsActive = true });
 
         Assert.Equal(3, df.RowCount);
         Assert.Equal("Zeynep", df.GetRow(2)["Name"]);
@@ -27,12 +27,12 @@ public sealed class DataFrameRowInsertionTests
     /// Verifies that appended rows preserve column order and schema metadata.
     /// </summary>
     [Fact]
-    public void AddRow_PreservesColumnOrderAndSchema()
+    public void RowsAdd_PreservesColumnOrderAndSchema()
     {
-        // Verifies that row insertion does not reorder or reshape columns.
+        // Verifies that row append does not reorder or reshape columns.
         var df = CreatePeopleDataFrame();
 
-        df.AddRow(new { Name = "Zeynep", Age = 29, Salary = 110000m, IsActive = true });
+        df.Rows.Add(new { Name = "Zeynep", Age = 29, Salary = 110000m, IsActive = true });
 
         Assert.Equal(new[] { "Name", "Age", "Salary", "IsActive" }, ColumnNames(df));
         Assert.Equal(new[] { "Name", "Age", "Salary", "IsActive" }, SchemaNames(df));
@@ -48,12 +48,12 @@ public sealed class DataFrameRowInsertionTests
     /// Verifies that missing row properties are rejected.
     /// </summary>
     [Fact]
-    public void AddRow_WithMissingProperty_Throws()
+    public void RowsAdd_WithMissingProperty_Throws()
     {
         // Verifies that rows must supply every existing DataFrame column.
         var df = CreatePeopleDataFrame();
 
-        var exception = Assert.Throws<ArgumentException>(() => df.AddRow(new { Name = "Zeynep", Age = 29 }));
+        var exception = Assert.Throws<ArgumentException>(() => df.Rows.Add(new { Name = "Zeynep", Age = 29 }));
 
         Assert.Contains("Salary", exception.Message);
     }
@@ -62,12 +62,12 @@ public sealed class DataFrameRowInsertionTests
     /// Verifies that extra row properties are rejected.
     /// </summary>
     [Fact]
-    public void AddRow_WithExtraProperty_Throws()
+    public void RowsAdd_WithExtraProperty_Throws()
     {
-        // Verifies that row insertion does not silently add or ignore unknown columns.
+        // Verifies that row append does not silently add or ignore unknown columns.
         var df = CreatePeopleDataFrame();
 
-        var exception = Assert.Throws<ArgumentException>(() => df.AddRow(new
+        var exception = Assert.Throws<ArgumentException>(() => df.Rows.Add(new
         {
             Name = "Zeynep",
             Age = 29,
@@ -83,12 +83,12 @@ public sealed class DataFrameRowInsertionTests
     /// Verifies that incompatible row value types are rejected.
     /// </summary>
     [Fact]
-    public void AddRow_WithIncompatibleValueType_Throws()
+    public void RowsAdd_WithIncompatibleValueType_Throws()
     {
-        // Verifies that row insertion does not convert incompatible values.
+        // Verifies that row append does not convert incompatible values.
         var df = CreatePeopleDataFrame();
 
-        var exception = Assert.Throws<ArgumentException>(() => df.AddRow(new
+        var exception = Assert.Throws<ArgumentException>(() => df.Rows.Add(new
         {
             Name = "Zeynep",
             Age = "29",
@@ -104,24 +104,24 @@ public sealed class DataFrameRowInsertionTests
     /// Verifies that null row arguments are rejected.
     /// </summary>
     [Fact]
-    public void AddRow_WithNullRow_Throws()
+    public void RowsAdd_WithNullRow_Throws()
     {
-        // Verifies that row insertion fails fast when no row object is supplied.
+        // Verifies that row append fails fast when no row object is supplied.
         var df = CreatePeopleDataFrame();
 
-        Assert.Throws<ArgumentNullException>(() => df.AddRow(null!));
+        Assert.Throws<ArgumentNullException>(() => df.Rows.Add(null!));
     }
 
     /// <summary>
     /// Verifies that rows can be added to an empty DataFrame with an existing schema.
     /// </summary>
     [Fact]
-    public void AddRow_ToEmptyDataFrameWithExistingSchema_AppendsRow()
+    public void RowsAdd_ToEmptyDataFrameWithExistingSchema_AppendsRow()
     {
         // Verifies that a zero-row DataFrame with schema accepts a matching row.
         var df = CreatePeopleDataFrame().Head(0);
 
-        df.AddRow(new { Name = "Zeynep", Age = 29, Salary = 110000m, IsActive = true });
+        df.Rows.Add(new { Name = "Zeynep", Age = 29, Salary = 110000m, IsActive = true });
 
         Assert.Equal(1, df.RowCount);
         Assert.Equal("Zeynep", df.GetRow(0)["Name"]);
@@ -129,15 +129,15 @@ public sealed class DataFrameRowInsertionTests
     }
 
     /// <summary>
-    /// Verifies that AddRow keeps existing rows unchanged before the appended row.
+    /// Verifies that RowsAdd keeps existing rows unchanged before the appended row.
     /// </summary>
     [Fact]
-    public void AddRow_PreservesExistingRowsBeforeAppendedRow()
+    public void RowsAdd_PreservesExistingRowsBeforeAppendedRow()
     {
         // Verifies that mutable row append only adds the final row.
         var df = CreatePeopleDataFrame();
 
-        df.AddRow(new { Name = "Zeynep", Age = 29, Salary = 110000m, IsActive = true });
+        df.Rows.Add(new { Name = "Zeynep", Age = 29, Salary = 110000m, IsActive = true });
 
         Assert.Equal("Ali", df.GetRow(0)["Name"]);
         Assert.Equal(30, df.GetRow(0)["Age"]);
@@ -149,12 +149,12 @@ public sealed class DataFrameRowInsertionTests
     /// Verifies that nullable columns accept null row values.
     /// </summary>
     [Fact]
-    public void AddRow_WithNullForNullableColumn_AppendsRow()
+    public void RowsAdd_WithNullForNullableColumn_AppendsRow()
     {
         // Verifies that existing nullability metadata controls null row values.
         var df = global::Runiq.Data.DataFrame.Create(new { Name = new[] { "Ali" }, Score = new int?[] { 10 } });
 
-        df.AddRow(new { Name = (string?)null, Score = (int?)null });
+        df.Rows.Add(new { Name = (string?)null, Score = (int?)null });
 
         Assert.Equal(2, df.RowCount);
         Assert.Null(df.GetRow(1)["Name"]);
@@ -165,12 +165,12 @@ public sealed class DataFrameRowInsertionTests
     /// Verifies that non-nullable columns reject null row values.
     /// </summary>
     [Fact]
-    public void AddRow_WithNullForNonNullableColumn_Throws()
+    public void RowsAdd_WithNullForNonNullableColumn_Throws()
     {
         // Verifies that null values cannot be inserted into non-nullable column types.
         var df = global::Runiq.Data.DataFrame.Create(new { Name = new[] { "Ali" }, Age = new[] { 30 } });
 
-        var exception = Assert.Throws<ArgumentException>(() => df.AddRow(new { Name = "Zeynep", Age = (int?)null }));
+        var exception = Assert.Throws<ArgumentException>(() => df.Rows.Add(new { Name = "Zeynep", Age = (int?)null }));
 
         Assert.Contains("Age", exception.Message);
         Assert.Contains("null", exception.Message);
