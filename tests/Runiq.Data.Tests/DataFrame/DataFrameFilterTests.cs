@@ -16,7 +16,7 @@ public sealed class DataFrameFilterTests
 
         var adults = df.Filter(row => row["Age"] >= 30);
 
-        Assert.Equal(2, adults.RowCount);
+        Assert.Equal(2, adults.Rows.Count());
         Assert.Equal("Ali", adults["Name"].GetValue(0));
         Assert.Equal("Mehmet", adults["Name"].GetValue(1));
     }
@@ -32,7 +32,7 @@ public sealed class DataFrameFilterTests
 
         var young = df.Filter(row => row["Age"] < 30);
 
-        Assert.Equal(1, young.RowCount);
+        Assert.Equal(1, young.Rows.Count());
         Assert.Equal("Ayse", young["Name"].GetValue(0));
     }
 
@@ -48,9 +48,9 @@ public sealed class DataFrameFilterTests
         var adults = df.Filter(row => row["Age"] >= 30);
 
         Assert.NotSame(df, adults);
-        Assert.Equal(3, df.RowCount);
+        Assert.Equal(3, df.Rows.Count());
         Assert.Equal("Ayse", df["Name"].GetValue(1));
-        Assert.Equal(2, adults.RowCount);
+        Assert.Equal(2, adults.Rows.Count());
     }
 
     /// <summary>
@@ -99,8 +99,8 @@ public sealed class DataFrameFilterTests
 
         var filtered = df.Filter(row => row["Age"] > 100);
 
-        Assert.Equal(0, filtered.RowCount);
-        Assert.Equal(4, filtered.ColumnCount);
+        Assert.Equal(0, filtered.Rows.Count());
+        Assert.Equal(4, filtered.Columns.Count());
         Assert.Equal(new[] { "Name", "Age", "Salary", "IsActive" }, ColumnNames(filtered));
     }
 
@@ -115,7 +115,7 @@ public sealed class DataFrameFilterTests
 
         var filtered = df.Filter(row => row["Age"] >= 0);
 
-        Assert.Equal(df.RowCount, filtered.RowCount);
+        Assert.Equal(df.Rows.Count(), filtered.Rows.Count());
         Assert.Equal("Mehmet", filtered["Name"].GetValue(2));
     }
 
@@ -301,7 +301,7 @@ public sealed class DataFrameFilterTests
 
         var filtered = df.Filter(row => row["Name"].Contains("Zeynep"));
 
-        Assert.Equal(0, filtered.RowCount);
+        Assert.Equal(0, filtered.Rows.Count());
     }
 
     /// <summary>
@@ -315,7 +315,7 @@ public sealed class DataFrameFilterTests
 
         var filtered = df.Filter(row => row["Name"].Contains(""));
 
-        Assert.Equal(df.RowCount, filtered.RowCount);
+        Assert.Equal(df.Rows.Count(), filtered.Rows.Count());
     }
 
     /// <summary>
@@ -385,7 +385,7 @@ public sealed class DataFrameFilterTests
 
         var filtered = df.Filter(row => row["Name"].StartsWith("Z"));
 
-        Assert.Equal(0, filtered.RowCount);
+        Assert.Equal(0, filtered.Rows.Count());
     }
 
     /// <summary>
@@ -399,7 +399,7 @@ public sealed class DataFrameFilterTests
 
         var filtered = df.Filter(row => row["Name"].StartsWith(""));
 
-        Assert.Equal(df.RowCount, filtered.RowCount);
+        Assert.Equal(df.Rows.Count(), filtered.Rows.Count());
     }
 
     /// <summary>
@@ -469,7 +469,7 @@ public sealed class DataFrameFilterTests
 
         var filtered = df.Filter(row => row["Email"].EndsWith("@example.org"));
 
-        Assert.Equal(0, filtered.RowCount);
+        Assert.Equal(0, filtered.Rows.Count());
     }
 
     /// <summary>
@@ -483,7 +483,7 @@ public sealed class DataFrameFilterTests
 
         var filtered = df.Filter(row => row["Email"].EndsWith(""));
 
-        Assert.Equal(df.RowCount, filtered.RowCount);
+        Assert.Equal(df.Rows.Count(), filtered.Rows.Count());
     }
 
     /// <summary>
@@ -641,7 +641,7 @@ public sealed class DataFrameFilterTests
         var selected = df.Filter(row => row["IsActive"] == true).Select("Name");
 
         Assert.Equal(new[] { "Name" }, ColumnNames(selected));
-        Assert.Equal(2, selected.RowCount);
+        Assert.Equal(2, selected.Rows.Count());
         Assert.Equal("Ali", selected["Name"].GetValue(0));
         Assert.Equal("Ayse", selected["Name"].GetValue(1));
     }
@@ -685,7 +685,7 @@ public sealed class DataFrameFilterTests
 
     private static string[] Names(global::Runiq.Data.DataFrame df)
     {
-        return Enumerable.Range(0, df.RowCount)
+        return Enumerable.Range(0, df.Rows.Count())
             .Select(index => (string)df["Name"].GetValue(index)!)
             .ToArray();
     }
@@ -700,3 +700,4 @@ public sealed class DataFrameFilterTests
         return df.Schema.Columns.Select(static column => column.Name).ToArray();
     }
 }
+

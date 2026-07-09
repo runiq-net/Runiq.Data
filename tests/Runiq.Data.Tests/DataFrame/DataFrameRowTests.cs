@@ -67,12 +67,12 @@ public sealed class DataFrameRowTests
     /// Verifies that row count is not a valid row index.
     /// </summary>
     [Fact]
-    public void GetRow_WhenIndexEqualsRowCount_ThrowsArgumentOutOfRangeException()
+    public void GetRow_WhenIndexEqualsRowsCount_ThrowsArgumentOutOfRangeException()
     {
         // This test verifies that row access fails fast when the index is outside the row range.
         var df = CreatePeopleDataFrame();
 
-        var exception = Assert.Throws<ArgumentOutOfRangeException>(() => df.GetRow(df.RowCount));
+        var exception = Assert.Throws<ArgumentOutOfRangeException>(() => df.GetRow(df.Rows.Count()));
 
         Assert.Contains("2", exception.Message);
     }
@@ -387,7 +387,7 @@ public sealed class DataFrameRowTests
         var df = CreatePeopleDataFrame();
         var row = df.GetRow(0);
 
-        df.AddColumn("IsActive", new[] { true, true });
+        df.Columns.Add("IsActive", new[] { true, true });
 
         Assert.Equal(new[] { "Name", "Age", "IsActive" }, row.ColumnNames);
         Assert.True(row.Bool("IsActive"));
@@ -416,3 +416,4 @@ public sealed class DataFrameRowTests
         });
     }
 }
+

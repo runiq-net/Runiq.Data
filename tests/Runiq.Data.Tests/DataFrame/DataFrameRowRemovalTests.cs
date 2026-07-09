@@ -18,7 +18,7 @@ public sealed class DataFrameRowRemovalTests
         df.Rows.Remove(1);
 
         Assert.Same(df, sameInstance);
-        Assert.Equal(2, df.RowCount);
+        Assert.Equal(2, df.Rows.Count());
         Assert.Equal("Ali", df.GetRow(0)["Name"]);
         Assert.Equal("Mehmet", df.GetRow(1)["Name"]);
     }
@@ -27,7 +27,7 @@ public sealed class DataFrameRowRemovalTests
     /// Verifies that Rows.Remove preserves column count, order, and schema.
     /// </summary>
     [Fact]
-    public void RowsRemove_PreservesColumnCountOrderAndSchema()
+    public void RowsRemove_PreservesColumnsCountOrderAndSchema()
     {
         // Verifies that removing a row does not reshape columns or schema metadata.
         var df = CreatePeopleDataFrame();
@@ -35,7 +35,7 @@ public sealed class DataFrameRowRemovalTests
 
         df.Rows.Remove(1);
 
-        Assert.Equal(4, df.ColumnCount);
+        Assert.Equal(4, df.Columns.Count());
         Assert.Equal(new[] { "Name", "Age", "Salary", "IsActive" }, ColumnNames(df));
         Assert.Equal(new[] { "Name", "Age", "Salary", "IsActive" }, SchemaNames(df));
         Assert.Same(schema, df.Schema);
@@ -70,7 +70,7 @@ public sealed class DataFrameRowRemovalTests
 
         df.Rows.Remove(0);
 
-        Assert.Equal(2, df.RowCount);
+        Assert.Equal(2, df.Rows.Count());
         Assert.Equal(new[] { "Ayse", "Mehmet" }, RowNames(df));
     }
 
@@ -85,7 +85,7 @@ public sealed class DataFrameRowRemovalTests
 
         df.Rows.Remove(2);
 
-        Assert.Equal(2, df.RowCount);
+        Assert.Equal(2, df.Rows.Count());
         Assert.Equal(new[] { "Ali", "Ayse" }, RowNames(df));
     }
 
@@ -104,8 +104,8 @@ public sealed class DataFrameRowRemovalTests
 
         df.Rows.Remove(0);
 
-        Assert.Equal(0, df.RowCount);
-        Assert.Equal(2, df.ColumnCount);
+        Assert.Equal(0, df.Rows.Count());
+        Assert.Equal(2, df.Columns.Count());
         Assert.Equal(new[] { "Name", "Age" }, ColumnNames(df));
         Assert.Equal(new[] { "Name", "Age" }, SchemaNames(df));
         Assert.Equal(typeof(string), df.Schema.GetColumn("Name").DataType);
@@ -127,15 +127,15 @@ public sealed class DataFrameRowRemovalTests
     }
 
     /// <summary>
-    /// Verifies that Rows.Remove rejects RowCount as an index.
+    /// Verifies that Rows.Remove rejects RowsCount as an index.
     /// </summary>
     [Fact]
-    public void RowsRemove_WhenIndexEqualsRowCount_ThrowsArgumentOutOfRangeException()
+    public void RowsRemove_WhenIndexEqualsRowsCount_ThrowsArgumentOutOfRangeException()
     {
         // Verifies that row removal fails fast when the index is outside the row range.
         var df = CreatePeopleDataFrame();
 
-        var exception = Assert.Throws<ArgumentOutOfRangeException>(() => df.Rows.Remove(df.RowCount));
+        var exception = Assert.Throws<ArgumentOutOfRangeException>(() => df.Rows.Remove(df.Rows.Count()));
 
         Assert.Equal("index", exception.ParamName);
     }
@@ -144,19 +144,19 @@ public sealed class DataFrameRowRemovalTests
     /// Verifies that indexes greater than row count are rejected.
     /// </summary>
     [Fact]
-    public void RowsRemove_WhenIndexIsGreaterThanRowCount_ThrowsAndLeavesDataFrameUnchanged()
+    public void RowsRemove_WhenIndexIsGreaterThanRowsCount_ThrowsAndLeavesDataFrameUnchanged()
     {
         // Verifies that an out-of-range removal does not change existing rows or shape.
         var df = CreatePeopleDataFrame();
-        var originalRowCount = df.RowCount;
-        var originalColumnCount = df.ColumnCount;
+        var originalRowsCount = df.Rows.Count();
+        var originalColumnsCount = df.Columns.Count();
         var originalNames = RowNames(df);
 
-        var exception = Assert.Throws<ArgumentOutOfRangeException>(() => df.Rows.Remove(df.RowCount + 1));
+        var exception = Assert.Throws<ArgumentOutOfRangeException>(() => df.Rows.Remove(df.Rows.Count() + 1));
 
         Assert.Equal("index", exception.ParamName);
-        Assert.Equal(originalRowCount, df.RowCount);
-        Assert.Equal(originalColumnCount, df.ColumnCount);
+        Assert.Equal(originalRowsCount, df.Rows.Count());
+        Assert.Equal(originalColumnsCount, df.Columns.Count());
         Assert.Equal(originalNames, RowNames(df));
     }
 
@@ -183,8 +183,9 @@ public sealed class DataFrameRowRemovalTests
 
     private static string[] RowNames(global::Runiq.Data.DataFrame df)
     {
-        return Enumerable.Range(0, df.RowCount)
+        return Enumerable.Range(0, df.Rows.Count())
             .Select(index => (string)df.GetRow(index)["Name"]!)
             .ToArray();
     }
 }
+

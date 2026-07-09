@@ -17,8 +17,8 @@ public sealed class DataFrameCopyTests
         var copy = df.Copy();
 
         Assert.NotSame(df, copy);
-        Assert.Equal(df.RowCount, copy.RowCount);
-        Assert.Equal(df.ColumnCount, copy.ColumnCount);
+        Assert.Equal(df.Rows.Count(), copy.Rows.Count());
+        Assert.Equal(df.Columns.Count(), copy.Columns.Count());
         Assert.Equal(new[] { "Name", "Age", "Score" }, ColumnNames(copy));
         Assert.Equal(new[] { "Name", "Age", "Score" }, SchemaNames(copy));
         Assert.Equal(typeof(string), copy.Schema.GetColumn("Name").DataType);
@@ -33,34 +33,34 @@ public sealed class DataFrameCopyTests
     }
 
     /// <summary>
-    /// Verifies that mutating a copy with AddColumn does not mutate the original.
+    /// Verifies that mutating a copy with ColumnsAdd does not mutate the original.
     /// </summary>
     [Fact]
-    public void Copy_AddColumnOnCopy_DoesNotMutateOriginal()
+    public void Copy_ColumnsAddOnCopy_DoesNotMutateOriginal()
     {
         // Verifies immutable-style column branching through Copy plus direct mutation.
         var df = CreatePeopleDataFrame();
         var copy = df.Copy();
 
-        copy.AddColumn("Active", new[] { true, false });
+        copy.Columns.Add("Active", new[] { true, false });
 
         Assert.False(df.HasColumn("Active"));
         Assert.True(copy.HasColumn("Active"));
-        Assert.Equal(3, df.ColumnCount);
-        Assert.Equal(4, copy.ColumnCount);
+        Assert.Equal(3, df.Columns.Count());
+        Assert.Equal(4, copy.Columns.Count());
     }
 
     /// <summary>
-    /// Verifies that mutating a copy with RemoveColumn does not mutate the original.
+    /// Verifies that mutating a copy with ColumnsRemove does not mutate the original.
     /// </summary>
     [Fact]
-    public void Copy_RemoveColumnOnCopy_DoesNotMutateOriginal()
+    public void Copy_ColumnsRemoveOnCopy_DoesNotMutateOriginal()
     {
         // Verifies that column removal on a copied branch is isolated.
         var df = CreatePeopleDataFrame();
         var copy = df.Copy();
 
-        copy.RemoveColumn("Score");
+        copy.Columns.Remove("Score");
 
         Assert.True(df.HasColumn("Score"));
         Assert.False(copy.HasColumn("Score"));
@@ -69,16 +69,16 @@ public sealed class DataFrameCopyTests
     }
 
     /// <summary>
-    /// Verifies that mutating a copy with RenameColumn does not mutate the original.
+    /// Verifies that mutating a copy with ColumnsRename does not mutate the original.
     /// </summary>
     [Fact]
-    public void Copy_RenameColumnOnCopy_DoesNotMutateOriginal()
+    public void Copy_ColumnsRenameOnCopy_DoesNotMutateOriginal()
     {
         // Verifies that rename on a copied branch preserves the source branch.
         var df = CreatePeopleDataFrame();
         var copy = df.Copy();
 
-        copy.RenameColumn("Score", "Points");
+        copy.Columns.Rename("Score", "Points");
 
         Assert.True(df.HasColumn("Score"));
         Assert.False(df.HasColumn("Points"));
@@ -99,8 +99,8 @@ public sealed class DataFrameCopyTests
 
         copy.Rows.Add(new { Name = "Zeynep", Age = 29, Score = (int?)40 });
 
-        Assert.Equal(2, df.RowCount);
-        Assert.Equal(3, copy.RowCount);
+        Assert.Equal(2, df.Rows.Count());
+        Assert.Equal(3, copy.Rows.Count());
         Assert.Equal("Zeynep", copy.GetRow(2)["Name"]);
     }
 
@@ -114,12 +114,12 @@ public sealed class DataFrameCopyTests
         var df = CreatePeopleDataFrame();
         var copy = df.Copy();
 
-        df.AddColumn("Active", new[] { true, false });
-        df.RenameColumn("Age", "Years");
+        df.Columns.Add("Active", new[] { true, false });
+        df.Columns.Rename("Age", "Years");
         df.Rows.Add(new { Name = "Zeynep", Years = 29, Score = (int?)40, Active = true });
 
-        Assert.Equal(2, copy.RowCount);
-        Assert.Equal(3, copy.ColumnCount);
+        Assert.Equal(2, copy.Rows.Count());
+        Assert.Equal(3, copy.Columns.Count());
         Assert.True(copy.HasColumn("Age"));
         Assert.False(copy.HasColumn("Years"));
         Assert.False(copy.HasColumn("Active"));
@@ -146,3 +146,4 @@ public sealed class DataFrameCopyTests
         return df.Schema.Columns.Select(static column => column.Name).ToArray();
     }
 }
+

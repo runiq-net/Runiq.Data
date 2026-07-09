@@ -85,4 +85,19 @@ public sealed class DataFrameRows
     {
         dataFrame.DeleteRowCore(index);
     }
+
+    /// <summary>
+    /// Returns the current number of rows without mutating the owning DataFrame.
+    /// </summary>
+    /// <remarks>
+    /// The returned value reflects prior row mutations performed through this facade and column
+    /// mutations performed through <see cref="DataFrame.Columns"/>.
+    /// </remarks>
+    /// <returns>The number of rows currently stored in the DataFrame.</returns>
+    public int Count()
+    {
+        return dataFrame.RowTotalCore;
+    }
 }
+
+

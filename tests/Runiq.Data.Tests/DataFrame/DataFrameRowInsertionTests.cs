@@ -16,7 +16,7 @@ public sealed class DataFrameRowInsertionTests
 
         df.Rows.Add(new { Name = "Zeynep", Age = 29, Salary = 110000m, IsActive = true });
 
-        Assert.Equal(3, df.RowCount);
+        Assert.Equal(3, df.Rows.Count());
         Assert.Equal("Zeynep", df.GetRow(2)["Name"]);
         Assert.Equal(29, df.GetRow(2)["Age"]);
         Assert.Equal(110000m, df.GetRow(2)["Salary"]);
@@ -123,7 +123,7 @@ public sealed class DataFrameRowInsertionTests
 
         df.Rows.Add(new { Name = "Zeynep", Age = 29, Salary = 110000m, IsActive = true });
 
-        Assert.Equal(1, df.RowCount);
+        Assert.Equal(1, df.Rows.Count());
         Assert.Equal("Zeynep", df.GetRow(0)["Name"]);
         Assert.Equal(new[] { "Name", "Age", "Salary", "IsActive" }, ColumnNames(df));
     }
@@ -156,7 +156,7 @@ public sealed class DataFrameRowInsertionTests
 
         df.Rows.Add(new { Name = (string?)null, Score = (int?)null });
 
-        Assert.Equal(2, df.RowCount);
+        Assert.Equal(2, df.Rows.Count());
         Assert.Null(df.GetRow(1)["Name"]);
         Assert.Null(df.GetRow(1)["Score"]);
     }
@@ -197,3 +197,4 @@ public sealed class DataFrameRowInsertionTests
         return df.Schema.Columns.Select(static column => column.Name).ToArray();
     }
 }
+

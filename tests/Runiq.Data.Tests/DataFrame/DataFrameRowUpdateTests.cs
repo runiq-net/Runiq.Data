@@ -52,8 +52,8 @@ public sealed class DataFrameRowUpdateTests
 
         df.Rows.Update(1, new { Name = "Zeynep", Age = 29, Salary = 110000m, IsActive = true });
 
-        Assert.Equal(3, df.RowCount);
-        Assert.Equal(4, df.ColumnCount);
+        Assert.Equal(3, df.Rows.Count());
+        Assert.Equal(4, df.Columns.Count());
         Assert.Equal(new[] { "Name", "Age", "Salary", "IsActive" }, ColumnNames(df));
         Assert.Equal(new[] { "Name", "Age", "Salary", "IsActive" }, SchemaNames(df));
         Assert.Same(schema, df.Schema);
@@ -129,12 +129,12 @@ public sealed class DataFrameRowUpdateTests
     /// Verifies that row count is not a valid update index.
     /// </summary>
     [Fact]
-    public void RowsUpdate_WhenIndexEqualsRowCount_ThrowsArgumentOutOfRangeException()
+    public void RowsUpdate_WhenIndexEqualsRowsCount_ThrowsArgumentOutOfRangeException()
     {
         // Verifies that row replacement fails fast when the index is outside the row range.
         var df = CreatePeopleDataFrame();
 
-        var exception = Assert.Throws<ArgumentOutOfRangeException>(() => df.Rows.Update(df.RowCount, ValidRow()));
+        var exception = Assert.Throws<ArgumentOutOfRangeException>(() => df.Rows.Update(df.Rows.Count(), ValidRow()));
 
         Assert.Equal("index", exception.ParamName);
     }
@@ -143,19 +143,19 @@ public sealed class DataFrameRowUpdateTests
     /// Verifies that indexes greater than row count are rejected.
     /// </summary>
     [Fact]
-    public void RowsUpdate_WhenIndexIsGreaterThanRowCount_ThrowsAndLeavesDataFrameUnchanged()
+    public void RowsUpdate_WhenIndexIsGreaterThanRowsCount_ThrowsAndLeavesDataFrameUnchanged()
     {
         // Verifies that an out-of-range replacement does not change existing rows or shape.
         var df = CreatePeopleDataFrame();
-        var originalRowCount = df.RowCount;
-        var originalColumnCount = df.ColumnCount;
+        var originalRowsCount = df.Rows.Count();
+        var originalColumnsCount = df.Columns.Count();
         var originalNames = RowNames(df);
 
-        var exception = Assert.Throws<ArgumentOutOfRangeException>(() => df.Rows.Update(df.RowCount + 1, ValidRow()));
+        var exception = Assert.Throws<ArgumentOutOfRangeException>(() => df.Rows.Update(df.Rows.Count() + 1, ValidRow()));
 
         Assert.Equal("index", exception.ParamName);
-        Assert.Equal(originalRowCount, df.RowCount);
-        Assert.Equal(originalColumnCount, df.ColumnCount);
+        Assert.Equal(originalRowsCount, df.Rows.Count());
+        Assert.Equal(originalColumnsCount, df.Columns.Count());
         Assert.Equal(originalNames, RowNames(df));
     }
 
@@ -301,8 +301,9 @@ public sealed class DataFrameRowUpdateTests
 
     private static string[] RowNames(global::Runiq.Data.DataFrame df)
     {
-        return Enumerable.Range(0, df.RowCount)
+        return Enumerable.Range(0, df.Rows.Count())
             .Select(index => (string)df.GetRow(index)["Name"]!)
             .ToArray();
     }
 }
+
