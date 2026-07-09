@@ -496,6 +496,70 @@ public sealed class DataFrame
     }
 
     /// <summary>
+    /// Appends one row and returns a new DataFrame without mutating the current instance.
+    /// </summary>
+    /// <param name="row">
+    /// An anonymous or simple object whose public readable properties exactly match the current
+    /// DataFrame columns by name.
+    /// </param>
+    /// <returns>
+    /// A new DataFrame with the row appended at the end, preserving the existing schema, column
+    /// order, column types, nullability metadata, and existing row order.
+    /// </returns>
+    /// <remarks>
+    /// Validation fails fast when <paramref name="row"/> is <see langword="null"/>, when any
+    /// existing column is missing, when extra properties are supplied, or when a value is not
+    /// compatible with the target column type and nullability contract.
+    /// </remarks>
+    /// <exception cref="ArgumentException">
+    /// Thrown when the row does not exactly match the DataFrame schema or contains incompatible values.
+    /// </exception>
+    /// <exception cref="ArgumentNullException">
+    /// Thrown when <paramref name="row"/> is <see langword="null"/>.
+    /// </exception>
+    public DataFrame WithRow(object row)
+    {
+        var rowValues = CreateValidatedRowValues(row);
+        var appendedColumns = columns
+            .Select(column => CreateAppendedSeries(column, rowValues[column.Name]))
+            .ToArray();
+
+        return new DataFrame(schema, Array.AsReadOnly(appendedColumns));
+    }
+
+    /// <summary>
+    /// Appends one row to the current DataFrame instance.
+    /// </summary>
+    /// <param name="row">
+    /// An anonymous or simple object whose public readable properties exactly match the current
+    /// DataFrame columns by name.
+    /// </param>
+    /// <remarks>
+    /// This method mutates the current DataFrame by appending the row at the end while preserving
+    /// the existing schema, column order, column types, nullability metadata, and existing row
+    /// order. Validation fails fast when <paramref name="row"/> is <see langword="null"/>, when
+    /// any existing column is missing, when extra properties are supplied, or when a value is not
+    /// compatible with the target column type and nullability contract.
+    /// </remarks>
+    /// <exception cref="ArgumentException">
+    /// Thrown when the row does not exactly match the DataFrame schema or contains incompatible values.
+    /// </exception>
+    /// <exception cref="ArgumentNullException">
+    /// Thrown when <paramref name="row"/> is <see langword="null"/>.
+    /// </exception>
+    public void AddRow(object row)
+    {
+        var rowValues = CreateValidatedRowValues(row);
+        var appendedColumns = columns
+            .Select(column => CreateAppendedSeries(column, rowValues[column.Name]))
+            .ToArray();
+
+        columns = Array.AsReadOnly(appendedColumns);
+        rowCount = appendedColumns.Length == 0 ? 0 : appendedColumns[0].Count;
+        columnsByName = CreateColumnLookup(appendedColumns);
+    }
+
+    /// <summary>
     /// Removes a column from the current DataFrame instance.
     /// </summary>
     /// <param name="columnName">The name of the column to remove, matched case-insensitively.</param>
@@ -884,6 +948,79 @@ public sealed class DataFrame
 
         var genericCreateMethod = CreateSeriesMethod.MakeGenericMethod(column.DataType);
         return (ISeries)genericCreateMethod.Invoke(null, [column.Name, values])!;
+    }
+
+    private static ISeries CreateAppendedSeries(ISeries column, object? appendedValue)
+    {
+        var values = Array.CreateInstance(column.DataType, column.Count + 1);
+        for (var index = 0; index < column.Count; index++)
+        {
+            values.SetValue(column.GetValue(index), index);
+        }
+
+        values.SetValue(appendedValue, column.Count);
+
+        var genericCreateMethod = CreateSeriesMethod.MakeGenericMethod(column.DataType);
+        return (ISeries)genericCreateMethod.Invoke(null, [column.Name, values])!;
+    }
+
+    private IReadOnlyDictionary<string, object?> CreateValidatedRowValues(object row)
+    {
+        ArgumentNullException.ThrowIfNull(row);
+
+        var properties = row.GetType()
+            .GetProperties(BindingFlags.Instance | BindingFlags.Public)
+            .Where(static property => property.GetMethod is not null && property.GetMethod.GetParameters().Length == 0)
+            .ToArray();
+
+        var valuesByName = new Dictionary<string, object?>(StringComparer.OrdinalIgnoreCase);
+        foreach (var property in properties)
+        {
+            if (!valuesByName.TryAdd(property.Name, property.GetValue(row)))
+            {
+                throw new ArgumentException($"Row property '{property.Name}' was supplied more than once using case-insensitive comparison.", nameof(row));
+            }
+        }
+
+        foreach (var propertyName in valuesByName.Keys)
+        {
+            if (!columnsByName.ContainsKey(propertyName))
+            {
+                throw new ArgumentException($"Row property '{propertyName}' does not exist in the DataFrame schema.", nameof(row));
+            }
+        }
+
+        foreach (var column in columns)
+        {
+            if (!valuesByName.TryGetValue(column.Name, out var value))
+            {
+                throw new ArgumentException($"Row is missing required DataFrame column '{column.Name}'.", nameof(row));
+            }
+
+            ValidateRowValue(column, value);
+        }
+
+        return valuesByName;
+    }
+
+    private static void ValidateRowValue(ISeries column, object? value)
+    {
+        if (value is null)
+        {
+            if (!column.IsNullable)
+            {
+                throw new ArgumentException($"Row value for column '{column.Name}' is null, but the column does not allow null values.");
+            }
+
+            return;
+        }
+
+        var targetType = Nullable.GetUnderlyingType(column.DataType) ?? column.DataType;
+        if (!targetType.IsInstanceOfType(value))
+        {
+            throw new ArgumentException(
+                $"Row value for column '{column.Name}' has type '{value.GetType()}' but the column expects '{column.DataType}'.");
+        }
     }
 
     private DataFrame TakeLeadingRows(int count)
