@@ -277,6 +277,258 @@ public sealed class DataFrameFilterTests
     }
 
     /// <summary>
+    /// Verifies that string Contains helper returns matching rows.
+    /// </summary>
+    [Fact]
+    public void Filter_WithStringContainsHelper_ReturnsMatchingRows()
+    {
+        // This test verifies that row["Name"].Contains("Ali") keeps rows whose string cell contains the substring.
+        var df = CreateContactDataFrame();
+
+        var filtered = df.Filter(row => row["Name"].Contains("Ali"));
+
+        Assert.Equal(new[] { "Ali" }, Names(filtered));
+    }
+
+    /// <summary>
+    /// Verifies that string Contains helper excludes non-matching rows.
+    /// </summary>
+    [Fact]
+    public void Filter_WithStringContainsHelper_WhenSubstringDoesNotMatch_ReturnsEmptyDataFrame()
+    {
+        // This test verifies that string Contains helper excludes rows whose string cell does not contain the substring.
+        var df = CreateContactDataFrame();
+
+        var filtered = df.Filter(row => row["Name"].Contains("Zeynep"));
+
+        Assert.Equal(0, filtered.RowCount);
+    }
+
+    /// <summary>
+    /// Verifies that string Contains helper follows .NET behavior for empty substrings.
+    /// </summary>
+    [Fact]
+    public void Filter_WithStringContainsHelper_WhenSubstringIsEmpty_ReturnsAllStringRows()
+    {
+        // This test verifies that empty substring matching follows the underlying .NET string behavior.
+        var df = CreateContactDataFrame();
+
+        var filtered = df.Filter(row => row["Name"].Contains(""));
+
+        Assert.Equal(df.RowCount, filtered.RowCount);
+    }
+
+    /// <summary>
+    /// Verifies that string Contains helper rejects non-string cells.
+    /// </summary>
+    [Fact]
+    public void Filter_WithStringContainsHelper_WhenCellIsNotString_ThrowsArgumentException()
+    {
+        // This test verifies that string Contains helper fails fast instead of converting non-string values.
+        var df = CreateContactDataFrame();
+
+        var exception = Assert.Throws<ArgumentException>(() => df.Filter(row => row["Age"].Contains("3")));
+
+        Assert.Contains("Age", exception.Message);
+        Assert.Contains("Int32", exception.Message);
+        Assert.Contains("String", exception.Message);
+    }
+
+    /// <summary>
+    /// Verifies that string Contains helper rejects null substrings.
+    /// </summary>
+    [Fact]
+    public void Filter_WithStringContainsHelper_WhenSubstringIsNull_ThrowsArgumentNullException()
+    {
+        // This test verifies that a null substring is rejected before string matching runs.
+        var df = CreateContactDataFrame();
+
+        Assert.Throws<ArgumentNullException>(() => df.Filter(row => row["Name"].Contains(null!)));
+    }
+
+    /// <summary>
+    /// Verifies that string Contains helper preserves missing column validation.
+    /// </summary>
+    [Fact]
+    public void Filter_WithStringContainsHelper_WhenColumnIsMissing_ThrowsKeyNotFoundException()
+    {
+        // This test verifies that string Contains helper does not hide missing column failures.
+        var df = CreateContactDataFrame();
+
+        var exception = Assert.Throws<KeyNotFoundException>(() => df.Filter(row => row["MissingColumn"].Contains("Ali")));
+
+        Assert.Contains("MissingColumn", exception.Message);
+    }
+
+    /// <summary>
+    /// Verifies that string StartsWith helper returns matching rows.
+    /// </summary>
+    [Fact]
+    public void Filter_WithStringStartsWithHelper_ReturnsMatchingRows()
+    {
+        // This test verifies that row["Name"].StartsWith("A") keeps rows whose string cell starts with the prefix.
+        var df = CreateContactDataFrame();
+
+        var filtered = df.Filter(row => row["Name"].StartsWith("A"));
+
+        Assert.Equal(new[] { "Ali", "Ayse" }, Names(filtered));
+    }
+
+    /// <summary>
+    /// Verifies that string StartsWith helper excludes non-matching rows.
+    /// </summary>
+    [Fact]
+    public void Filter_WithStringStartsWithHelper_WhenPrefixDoesNotMatch_ReturnsEmptyDataFrame()
+    {
+        // This test verifies that string StartsWith helper excludes rows whose string cell does not start with the prefix.
+        var df = CreateContactDataFrame();
+
+        var filtered = df.Filter(row => row["Name"].StartsWith("Z"));
+
+        Assert.Equal(0, filtered.RowCount);
+    }
+
+    /// <summary>
+    /// Verifies that string StartsWith helper follows .NET behavior for empty prefixes.
+    /// </summary>
+    [Fact]
+    public void Filter_WithStringStartsWithHelper_WhenPrefixIsEmpty_ReturnsAllStringRows()
+    {
+        // This test verifies that empty prefix matching follows the underlying .NET string behavior.
+        var df = CreateContactDataFrame();
+
+        var filtered = df.Filter(row => row["Name"].StartsWith(""));
+
+        Assert.Equal(df.RowCount, filtered.RowCount);
+    }
+
+    /// <summary>
+    /// Verifies that string StartsWith helper rejects non-string cells.
+    /// </summary>
+    [Fact]
+    public void Filter_WithStringStartsWithHelper_WhenCellIsNotString_ThrowsArgumentException()
+    {
+        // This test verifies that string StartsWith helper fails fast instead of converting non-string values.
+        var df = CreateContactDataFrame();
+
+        var exception = Assert.Throws<ArgumentException>(() => df.Filter(row => row["Age"].StartsWith("3")));
+
+        Assert.Contains("Age", exception.Message);
+        Assert.Contains("Int32", exception.Message);
+        Assert.Contains("String", exception.Message);
+    }
+
+    /// <summary>
+    /// Verifies that string StartsWith helper rejects null prefixes.
+    /// </summary>
+    [Fact]
+    public void Filter_WithStringStartsWithHelper_WhenPrefixIsNull_ThrowsArgumentNullException()
+    {
+        // This test verifies that a null prefix is rejected before string matching runs.
+        var df = CreateContactDataFrame();
+
+        Assert.Throws<ArgumentNullException>(() => df.Filter(row => row["Name"].StartsWith(null!)));
+    }
+
+    /// <summary>
+    /// Verifies that string StartsWith helper preserves missing column validation.
+    /// </summary>
+    [Fact]
+    public void Filter_WithStringStartsWithHelper_WhenColumnIsMissing_ThrowsKeyNotFoundException()
+    {
+        // This test verifies that string StartsWith helper does not hide missing column failures.
+        var df = CreateContactDataFrame();
+
+        var exception = Assert.Throws<KeyNotFoundException>(() => df.Filter(row => row["MissingColumn"].StartsWith("A")));
+
+        Assert.Contains("MissingColumn", exception.Message);
+    }
+
+    /// <summary>
+    /// Verifies that string EndsWith helper returns matching rows.
+    /// </summary>
+    [Fact]
+    public void Filter_WithStringEndsWithHelper_ReturnsMatchingRows()
+    {
+        // This test verifies that row["Email"].EndsWith("@gmail.com") keeps rows whose string cell ends with the suffix.
+        var df = CreateContactDataFrame();
+
+        var filtered = df.Filter(row => row["Email"].EndsWith("@gmail.com"));
+
+        Assert.Equal(new[] { "Ali", "Mehmet" }, Names(filtered));
+    }
+
+    /// <summary>
+    /// Verifies that string EndsWith helper excludes non-matching rows.
+    /// </summary>
+    [Fact]
+    public void Filter_WithStringEndsWithHelper_WhenSuffixDoesNotMatch_ReturnsEmptyDataFrame()
+    {
+        // This test verifies that string EndsWith helper excludes rows whose string cell does not end with the suffix.
+        var df = CreateContactDataFrame();
+
+        var filtered = df.Filter(row => row["Email"].EndsWith("@example.org"));
+
+        Assert.Equal(0, filtered.RowCount);
+    }
+
+    /// <summary>
+    /// Verifies that string EndsWith helper follows .NET behavior for empty suffixes.
+    /// </summary>
+    [Fact]
+    public void Filter_WithStringEndsWithHelper_WhenSuffixIsEmpty_ReturnsAllStringRows()
+    {
+        // This test verifies that empty suffix matching follows the underlying .NET string behavior.
+        var df = CreateContactDataFrame();
+
+        var filtered = df.Filter(row => row["Email"].EndsWith(""));
+
+        Assert.Equal(df.RowCount, filtered.RowCount);
+    }
+
+    /// <summary>
+    /// Verifies that string EndsWith helper rejects non-string cells.
+    /// </summary>
+    [Fact]
+    public void Filter_WithStringEndsWithHelper_WhenCellIsNotString_ThrowsArgumentException()
+    {
+        // This test verifies that string EndsWith helper fails fast instead of converting non-string values.
+        var df = CreateContactDataFrame();
+
+        var exception = Assert.Throws<ArgumentException>(() => df.Filter(row => row["IsActive"].EndsWith("true")));
+
+        Assert.Contains("IsActive", exception.Message);
+        Assert.Contains("Boolean", exception.Message);
+        Assert.Contains("String", exception.Message);
+    }
+
+    /// <summary>
+    /// Verifies that string EndsWith helper rejects null suffixes.
+    /// </summary>
+    [Fact]
+    public void Filter_WithStringEndsWithHelper_WhenSuffixIsNull_ThrowsArgumentNullException()
+    {
+        // This test verifies that a null suffix is rejected before string matching runs.
+        var df = CreateContactDataFrame();
+
+        Assert.Throws<ArgumentNullException>(() => df.Filter(row => row["Email"].EndsWith(null!)));
+    }
+
+    /// <summary>
+    /// Verifies that string EndsWith helper preserves missing column validation.
+    /// </summary>
+    [Fact]
+    public void Filter_WithStringEndsWithHelper_WhenColumnIsMissing_ThrowsKeyNotFoundException()
+    {
+        // This test verifies that string EndsWith helper does not hide missing column failures.
+        var df = CreateContactDataFrame();
+
+        var exception = Assert.Throws<KeyNotFoundException>(() => df.Filter(row => row["MissingColumn"].EndsWith("@gmail.com")));
+
+        Assert.Contains("MissingColumn", exception.Message);
+    }
+
+    /// <summary>
     /// Verifies that string inequality comparisons work.
     /// </summary>
     [Fact]
@@ -349,6 +601,20 @@ public sealed class DataFrameFilterTests
     }
 
     /// <summary>
+    /// Verifies that string helpers compose with other predicates.
+    /// </summary>
+    [Fact]
+    public void Filter_WithCompoundPredicateAndStringHelper_ReturnsMatchingRows()
+    {
+        // This test verifies that string helpers compose with existing Boolean comparison predicates.
+        var df = CreateContactDataFrame();
+
+        var filtered = df.Filter(row => row["IsActive"] == true && row["Name"].StartsWith("Al"));
+
+        Assert.Equal(new[] { "Ali" }, Names(filtered));
+    }
+
+    /// <summary>
     /// Verifies that Select and Filter compose.
     /// </summary>
     [Fact]
@@ -402,6 +668,17 @@ public sealed class DataFrameFilterTests
             Name = new[] { "Ali", "Ayse", "Mehmet" },
             Age = new[] { 30, 25, 41 },
             Salary = new[] { 120000m, 95000m, 150000m },
+            IsActive = new[] { true, true, false }
+        });
+    }
+
+    private static global::Runiq.Data.DataFrame CreateContactDataFrame()
+    {
+        return global::Runiq.Data.DataFrame.Create(new
+        {
+            Name = new[] { "Ali", "Ayse", "Mehmet" },
+            Email = new[] { "ali@gmail.com", "ayse@example.com", "mehmet@gmail.com" },
+            Age = new[] { 30, 25, 41 },
             IsActive = new[] { true, true, false }
         });
     }
