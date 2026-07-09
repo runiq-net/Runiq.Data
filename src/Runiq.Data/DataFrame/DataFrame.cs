@@ -18,10 +18,11 @@ namespace Runiq.Data;
 /// <para>
 /// A DataFrame owns snapshots of the supplied column values, preserves column order, requires
 /// all columns to have the same row count, and performs column lookup using case-insensitive
-/// names for convenience. Transformation methods such as <see cref="Select(string[])"/>,
-/// <see cref="Drop(string[])"/>, <see cref="RenameColumn(string, string)"/>, and
-/// <see cref="WithColumn{T}(string, IEnumerable{T})"/> return new DataFrame instances. Methods
-/// with explicit mutable names update the current instance.
+/// names for convenience. Projection methods such as <see cref="Select(string[])"/> and
+/// <see cref="Drop(string[])"/> return new DataFrame instances. Direct mutation methods such as
+/// <see cref="AddColumn{T}(string, IEnumerable{T})"/>, <see cref="RemoveColumn(string)"/>,
+/// <see cref="RenameColumn(string, string)"/>, and <see cref="AddRow(object)"/> update the
+/// current instance. Call <see cref="Copy"/> first when a separate mutable branch is needed.
 /// </para>
 /// </remarks>
 public sealed class DataFrame
@@ -187,6 +188,30 @@ public sealed class DataFrame
         ValidateRowCounts(orderedColumns);
 
         return new DataFrame(schema, Array.AsReadOnly(orderedColumns));
+    }
+
+    /// <summary>
+    /// Creates an independent DataFrame branch with the same schema and values as the current instance.
+    /// </summary>
+    /// <returns>
+    /// A new DataFrame containing the same column order, column names, data types, nullability
+    /// metadata, row order, and cell values as the current DataFrame.
+    /// </returns>
+    /// <remarks>
+    /// The returned DataFrame owns new column snapshots, so mutating the copy with
+    /// <see cref="AddColumn{T}(string, IEnumerable{T})"/>, <see cref="RemoveColumn(string)"/>,
+    /// <see cref="RenameColumn(string, string)"/>, or <see cref="AddRow(object)"/> does not
+    /// mutate the original instance. Mutating the original after copying likewise does not mutate
+    /// the copy. Use this method when immutable-style workflows need an explicit branch before
+    /// applying direct mutations.
+    /// </remarks>
+    public DataFrame Copy()
+    {
+        var copiedColumns = columns
+            .Select(CloneSeries)
+            .ToArray();
+
+        return new DataFrame(schema, Array.AsReadOnly(copiedColumns));
     }
 
     /// <summary>
@@ -388,19 +413,16 @@ public sealed class DataFrame
     }
 
     /// <summary>
-    /// Renames one column and returns a new immutable DataFrame with the same rows, values, and
-    /// column order.
+    /// Renames one column on the current DataFrame instance.
     /// </summary>
     /// <param name="currentName">The existing column name to rename, matched case-insensitively.</param>
-    /// <param name="newName">The canonical column name to use in the returned DataFrame.</param>
-    /// <returns>
-    /// A new DataFrame whose schema and column collection contain <paramref name="newName"/> in
-    /// the source column's original position.
-    /// </returns>
+    /// <param name="newName">The canonical column name to store after the rename.</param>
     /// <remarks>
-    /// The source DataFrame is not modified. Missing source columns are rejected, and target names
-    /// that conflict with another existing column are rejected using case-insensitive comparison.
-    /// Renaming only the casing of the same column is allowed and updates the canonical name.
+    /// This method mutates the current DataFrame while preserving row count, column count, column
+    /// order, values, data types, and nullability metadata. Missing source columns are rejected,
+    /// and target names that conflict with another existing column are rejected using
+    /// case-insensitive comparison. Renaming only the casing of the same column is allowed and
+    /// updates the canonical name.
     /// </remarks>
     /// <exception cref="ArgumentException">
     /// Thrown when either name is empty or contains only whitespace, or when
@@ -413,7 +435,7 @@ public sealed class DataFrame
     /// <exception cref="KeyNotFoundException">
     /// Thrown when <paramref name="currentName"/> does not match an existing column.
     /// </exception>
-    public DataFrame RenameColumn(string currentName, string newName)
+    public void RenameColumn(string currentName, string newName)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(currentName);
         ArgumentException.ThrowIfNullOrWhiteSpace(newName);
@@ -424,49 +446,11 @@ public sealed class DataFrame
             throw new ArgumentException($"Column '{newName}' conflicts with an existing DataFrame column.", nameof(newName));
         }
 
-        var sourceSchemaColumn = Schema.GetColumn(sourceColumn.Name);
-        var renamedColumns = Columns
+        var renamedColumns = columns
             .Select(column => ReferenceEquals(column, sourceColumn) ? CreateSeriesWithName(newName, column) : column)
             .ToArray();
-        var renamedSchemaColumns = Schema.Columns
-            .Select(column => column.Ordinal == sourceSchemaColumn.Ordinal
-                ? ColumnSchema.Create(newName, column.DataType, column.IsNullable, column.Ordinal)
-                : column)
-            .ToArray();
 
-        var schema = DataFrameSchema.Create(renamedSchemaColumns);
-        return new DataFrame(schema, Array.AsReadOnly(renamedColumns));
-    }
-
-    /// <summary>
-    /// Adds a column and returns a new DataFrame without mutating the source instance.
-    /// </summary>
-    /// <typeparam name="T">The CLR type of each value in the new column.</typeparam>
-    /// <param name="name">The canonical name of the column to append.</param>
-    /// <param name="values">The values to snapshot into the new column.</param>
-    /// <returns>
-    /// A new DataFrame with the supplied column appended after the existing columns.
-    /// </returns>
-    /// <remarks>
-    /// The existing schema, column order, values, data types, and nullability metadata are
-    /// preserved. Column name conflicts are detected using case-insensitive comparison.
-    /// </remarks>
-    /// <exception cref="ArgumentException">
-    /// Thrown when <paramref name="name"/> is empty or whitespace, when the name conflicts with
-    /// an existing column, when <paramref name="values"/> is a string, or when the value count
-    /// does not match <see cref="RowCount"/>.
-    /// </exception>
-    /// <exception cref="ArgumentNullException">
-    /// Thrown when <paramref name="name"/> or <paramref name="values"/> is <see langword="null"/>.
-    /// </exception>
-    public DataFrame WithColumn<T>(string name, IEnumerable<T> values)
-    {
-        var column = CreateAddedColumn(name, values);
-        var addedColumns = columns.Concat([column]).ToArray();
-        var addedSchemaColumns = CreateSchemaColumns(addedColumns);
-        var addedSchema = DataFrameSchema.Create(addedSchemaColumns);
-
-        return new DataFrame(addedSchema, Array.AsReadOnly(addedColumns));
+        ReplaceState(renamedColumns);
     }
 
     /// <summary>
@@ -476,8 +460,11 @@ public sealed class DataFrame
     /// <param name="name">The canonical name of the column to append.</param>
     /// <param name="values">The values to snapshot into the new column.</param>
     /// <remarks>
-    /// This method mutates the current DataFrame by appending a new read-only column and updating
-    /// the schema. Existing columns, values, data types, and nullability metadata are preserved.
+    /// This method mutates the current DataFrame by appending a new read-only snapshot column and
+    /// updating the schema. Existing columns, row order, values, data types, and nullability
+    /// metadata are preserved. Validation fails fast before mutation when the column name is
+    /// invalid, conflicts with an existing column, is backed by a string instead of a value
+    /// collection, or has a value count that differs from <see cref="RowCount"/>.
     /// </remarks>
     /// <exception cref="ArgumentException">
     /// Thrown when <paramref name="name"/> is empty or whitespace, when the name conflicts with
@@ -493,38 +480,6 @@ public sealed class DataFrame
         var addedColumns = columns.Concat([column]).ToArray();
 
         ReplaceState(addedColumns);
-    }
-
-    /// <summary>
-    /// Appends one row and returns a new DataFrame without mutating the current instance.
-    /// </summary>
-    /// <param name="row">
-    /// An anonymous or simple object whose public readable properties exactly match the current
-    /// DataFrame columns by name.
-    /// </param>
-    /// <returns>
-    /// A new DataFrame with the row appended at the end, preserving the existing schema, column
-    /// order, column types, nullability metadata, and existing row order.
-    /// </returns>
-    /// <remarks>
-    /// Validation fails fast when <paramref name="row"/> is <see langword="null"/>, when any
-    /// existing column is missing, when extra properties are supplied, or when a value is not
-    /// compatible with the target column type and nullability contract.
-    /// </remarks>
-    /// <exception cref="ArgumentException">
-    /// Thrown when the row does not exactly match the DataFrame schema or contains incompatible values.
-    /// </exception>
-    /// <exception cref="ArgumentNullException">
-    /// Thrown when <paramref name="row"/> is <see langword="null"/>.
-    /// </exception>
-    public DataFrame WithRow(object row)
-    {
-        var rowValues = CreateValidatedRowValues(row);
-        var appendedColumns = columns
-            .Select(column => CreateAppendedSeries(column, rowValues[column.Name]))
-            .ToArray();
-
-        return new DataFrame(schema, Array.AsReadOnly(appendedColumns));
     }
 
     /// <summary>
@@ -564,7 +519,8 @@ public sealed class DataFrame
     /// </summary>
     /// <param name="columnName">The name of the column to remove, matched case-insensitively.</param>
     /// <remarks>
-    /// This method mutates the current DataFrame and rejects missing columns. Removing the final
+    /// This method mutates the current DataFrame and updates the schema after removing the
+    /// requested column. Missing columns are rejected instead of ignored. Removing the final
     /// remaining column is rejected because a DataFrame schema must contain at least one column.
     /// </remarks>
     /// <exception cref="ArgumentException">
@@ -598,45 +554,6 @@ public sealed class DataFrame
             .ToArray();
 
         ReplaceState(remainingColumns);
-    }
-
-    /// <summary>
-    /// Renames a column on the current DataFrame instance.
-    /// </summary>
-    /// <param name="currentName">The existing column name to rename, matched case-insensitively.</param>
-    /// <param name="newName">The canonical column name to store after the rename.</param>
-    /// <remarks>
-    /// This method mutates the current DataFrame while preserving row count, column count, column
-    /// order, values, data types, and nullability metadata. Renaming only the casing of the same
-    /// column is allowed.
-    /// </remarks>
-    /// <exception cref="ArgumentException">
-    /// Thrown when either name is empty or whitespace, or when <paramref name="newName"/>
-    /// conflicts with another existing column.
-    /// </exception>
-    /// <exception cref="ArgumentNullException">
-    /// Thrown when <paramref name="currentName"/> or <paramref name="newName"/> is
-    /// <see langword="null"/>.
-    /// </exception>
-    /// <exception cref="KeyNotFoundException">
-    /// Thrown when <paramref name="currentName"/> does not match an existing column.
-    /// </exception>
-    public void RenameColumnInPlace(string currentName, string newName)
-    {
-        ArgumentException.ThrowIfNullOrWhiteSpace(currentName);
-        ArgumentException.ThrowIfNullOrWhiteSpace(newName);
-
-        var sourceColumn = GetColumn(currentName);
-        if (columnsByName.TryGetValue(newName, out var conflictingColumn) && !ReferenceEquals(sourceColumn, conflictingColumn))
-        {
-            throw new ArgumentException($"Column '{newName}' conflicts with an existing DataFrame column.", nameof(newName));
-        }
-
-        var renamedColumns = columns
-            .Select(column => ReferenceEquals(column, sourceColumn) ? CreateSeriesWithName(newName, column) : column)
-            .ToArray();
-
-        ReplaceState(renamedColumns);
     }
 
     /// <summary>
@@ -936,6 +853,18 @@ public sealed class DataFrame
 
         var genericCreateMethod = CreateSeriesMethod.MakeGenericMethod(column.DataType);
         return (ISeries)genericCreateMethod.Invoke(null, [name, values])!;
+    }
+
+    private static ISeries CloneSeries(ISeries column)
+    {
+        var values = Array.CreateInstance(column.DataType, column.Count);
+        for (var index = 0; index < column.Count; index++)
+        {
+            values.SetValue(column.GetValue(index), index);
+        }
+
+        var genericCreateMethod = CreateSeriesMethod.MakeGenericMethod(column.DataType);
+        return (ISeries)genericCreateMethod.Invoke(null, [column.Name, values])!;
     }
 
     private static ISeries CreateFilteredSeries(ISeries column, IReadOnlyList<int> rowIndexes)
