@@ -316,6 +316,46 @@ public sealed class DataFrame
     }
 
     /// <summary>
+    /// Filters rows into a new immutable DataFrame using a read-only row predicate.
+    /// </summary>
+    /// <param name="predicate">
+    /// The predicate evaluated once per row. Rows whose predicate returns <see langword="true"/>
+    /// are copied into the returned DataFrame.
+    /// </param>
+    /// <returns>
+    /// A new DataFrame containing matching rows, with the same schema, column order, and row
+    /// order as the source DataFrame. The source DataFrame is not modified.
+    /// </returns>
+    /// <remarks>
+    /// Predicate evaluation uses <see cref="DataFrameFilterRow"/> views so direct
+    /// <see cref="DataFrameRow"/> access can keep returning raw object values. Missing columns,
+    /// invalid column names, unsupported comparisons, and exceptions thrown by the predicate are
+    /// not swallowed; they fail the filter operation immediately.
+    /// </remarks>
+    /// <exception cref="ArgumentNullException">
+    /// Thrown when <paramref name="predicate"/> is <see langword="null"/>.
+    /// </exception>
+    public DataFrame Filter(Func<DataFrameFilterRow, bool> predicate)
+    {
+        ArgumentNullException.ThrowIfNull(predicate);
+
+        var matchingRowIndexes = new List<int>();
+        for (var rowIndex = 0; rowIndex < rowCount; rowIndex++)
+        {
+            if (predicate(new DataFrameFilterRow(this, rowIndex)))
+            {
+                matchingRowIndexes.Add(rowIndex);
+            }
+        }
+
+        var filteredColumns = columns
+            .Select(column => CreateFilteredSeries(column, matchingRowIndexes))
+            .ToArray();
+
+        return new DataFrame(schema, Array.AsReadOnly(filteredColumns));
+    }
+
+    /// <summary>
     /// Renames one column and returns a new immutable DataFrame with the same rows, values, and
     /// column order.
     /// </summary>
@@ -800,6 +840,18 @@ public sealed class DataFrame
 
         var genericCreateMethod = CreateSeriesMethod.MakeGenericMethod(column.DataType);
         return (ISeries)genericCreateMethod.Invoke(null, [name, values])!;
+    }
+
+    private static ISeries CreateFilteredSeries(ISeries column, IReadOnlyList<int> rowIndexes)
+    {
+        var values = Array.CreateInstance(column.DataType, rowIndexes.Count);
+        for (var index = 0; index < rowIndexes.Count; index++)
+        {
+            values.SetValue(column.GetValue(rowIndexes[index]), index);
+        }
+
+        var genericCreateMethod = CreateSeriesMethod.MakeGenericMethod(column.DataType);
+        return (ISeries)genericCreateMethod.Invoke(null, [column.Name, values])!;
     }
 
     private static void ValidateRowCounts(IReadOnlyList<ISeries> columns)
