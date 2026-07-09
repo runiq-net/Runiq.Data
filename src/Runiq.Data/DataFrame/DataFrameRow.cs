@@ -22,7 +22,7 @@ public sealed class DataFrameRow
     /// <summary>
     /// Gets the DataFrame column names in their current schema order.
     /// </summary>
-    public IReadOnlyList<string> ColumnNames => Array.AsReadOnly(dataFrame.Columns.Select(static column => column.Name).ToArray());
+    public IReadOnlyList<string> ColumnNames => Array.AsReadOnly(dataFrame.ColumnSeries.Select(static column => column.Name).ToArray());
 
     /// <summary>
     /// Gets the raw value for the specified column in this row.
@@ -212,3 +212,4 @@ public sealed class DataFrameRow
             nameof(columnName));
     }
 }
+

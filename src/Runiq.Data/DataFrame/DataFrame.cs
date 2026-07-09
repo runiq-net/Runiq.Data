@@ -19,11 +19,9 @@ namespace Runiq.Data;
 /// A DataFrame owns snapshots of the supplied column values, preserves column order, requires
 /// all columns to have the same row count, and performs column lookup using case-insensitive
 /// names for convenience. Projection methods such as <see cref="Select(string[])"/> and
-/// <see cref="Drop(string[])"/> return new DataFrame instances. Direct mutation methods such as
-/// <see cref="AddColumn{T}(string, IEnumerable{T})"/>, <see cref="RemoveColumn(string)"/>,
-/// <see cref="RenameColumn(string, string)"/>, and row operations accessed through
-/// <see cref="Rows"/> update the current instance. Call <see cref="Copy"/> first when a
-/// separate mutable branch is needed.
+/// <see cref="Drop(string[])"/> return new DataFrame instances. Mutation operations accessed
+/// through <see cref="Columns"/> and <see cref="Rows"/> update the current instance. Call
+/// <see cref="Copy"/> first when a separate mutable branch is needed.
 /// </para>
 /// </remarks>
 public sealed class DataFrame
@@ -44,6 +42,7 @@ public sealed class DataFrame
         columnCount = columns.Count;
         rowCount = columns.Count == 0 ? 0 : columns[0].Count;
         columnsByName = CreateColumnLookup(columns);
+        Columns = new DataFrameColumns(this);
         Rows = new DataFrameRows(this);
     }
 
@@ -53,19 +52,14 @@ public sealed class DataFrame
     public DataFrameSchema Schema => schema;
 
     /// <summary>
-    /// Gets the DataFrame columns in schema order.
+    /// Gets the column operation facade for mutating columns on the current DataFrame instance.
     /// </summary>
-    public IReadOnlyList<ISeries> Columns => columns;
-
-    /// <summary>
-    /// Gets the number of rows in each DataFrame column.
-    /// </summary>
-    public int RowCount => rowCount;
-
-    /// <summary>
-    /// Gets the number of columns in the DataFrame.
-    /// </summary>
-    public int ColumnCount => columnCount;
+    /// <remarks>
+    /// Operations exposed through this facade append, remove, or rename columns in place while
+    /// preserving row order and validating names, conflicts, and value counts before mutation.
+    /// Call <see cref="Copy"/> first when a separate mutable branch is needed.
+    /// </remarks>
+    public DataFrameColumns Columns { get; }
 
     /// <summary>
     /// Gets the row operation facade for mutating rows on the current DataFrame instance.
@@ -76,6 +70,12 @@ public sealed class DataFrame
     /// separate mutable branch is needed.
     /// </remarks>
     public DataFrameRows Rows { get; }
+
+    internal IReadOnlyList<ISeries> ColumnSeries => columns;
+
+    internal int RowTotalCore => rowCount;
+
+    internal int ColumnTotalCore => columnCount;
 
     /// <summary>
     /// Gets the column with the specified name using case-insensitive lookup.
@@ -197,7 +197,7 @@ public sealed class DataFrame
             orderedColumns[expectedColumn.Ordinal] = CreateSeriesWithName(expectedColumn.Name, actualColumn);
         }
 
-        ValidateRowCounts(orderedColumns);
+        ValidateRowTotals(orderedColumns);
 
         return new DataFrame(schema, Array.AsReadOnly(orderedColumns));
     }
@@ -211,9 +211,8 @@ public sealed class DataFrame
     /// </returns>
     /// <remarks>
     /// The returned DataFrame owns new column snapshots, so mutating the copy with
-    /// <see cref="AddColumn{T}(string, IEnumerable{T})"/>, <see cref="RemoveColumn(string)"/>,
-    /// <see cref="RenameColumn(string, string)"/>, or operations accessed through
-    /// <see cref="Rows"/> does not mutate the original instance. Mutating the original after
+    /// operations accessed through <see cref="Columns"/> or <see cref="Rows"/> does not mutate
+    /// the original instance. Mutating the original after
     /// copying likewise does not mutate the copy. Use this method when immutable-style workflows
     /// need an explicit branch before applying direct mutations.
     /// </remarks>
@@ -332,12 +331,12 @@ public sealed class DataFrame
             }
         }
 
-        if (droppedNames.Count == ColumnCount)
+        if (droppedNames.Count == columnCount)
         {
             throw new ArgumentException("Dropping all columns is not supported because a DataFrame schema must contain at least one column.", nameof(columnNames));
         }
 
-        var remainingColumns = Columns
+        var remainingColumns = columns
             .Where(column => !droppedNames.Contains(column.Name))
             .ToArray();
         var remainingSchemaColumns = remainingColumns
@@ -447,7 +446,7 @@ public sealed class DataFrame
     /// <exception cref="KeyNotFoundException">
     /// Thrown when <paramref name="currentName"/> does not match an existing column.
     /// </exception>
-    public void RenameColumn(string currentName, string newName)
+    internal void RenameColumnCore(string currentName, string newName)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(currentName);
         ArgumentException.ThrowIfNullOrWhiteSpace(newName);
@@ -476,17 +475,17 @@ public sealed class DataFrame
     /// updating the schema. Existing columns, row order, values, data types, and nullability
     /// metadata are preserved. Validation fails fast before mutation when the column name is
     /// invalid, conflicts with an existing column, is backed by a string instead of a value
-    /// collection, or has a value count that differs from <see cref="RowCount"/>.
+    /// collection, or has a value count that differs from the current row count.
     /// </remarks>
     /// <exception cref="ArgumentException">
     /// Thrown when <paramref name="name"/> is empty or whitespace, when the name conflicts with
     /// an existing column, when <paramref name="values"/> is a string, or when the value count
-    /// does not match <see cref="RowCount"/>.
+    /// does not match the current row count.
     /// </exception>
     /// <exception cref="ArgumentNullException">
     /// Thrown when <paramref name="name"/> or <paramref name="values"/> is <see langword="null"/>.
     /// </exception>
-    public void AddColumn<T>(string name, IEnumerable<T> values)
+    internal void AddColumnCore<T>(string name, IEnumerable<T> values)
     {
         var column = CreateAddedColumn(name, values);
         var addedColumns = columns.Concat([column]).ToArray();
@@ -552,7 +551,7 @@ public sealed class DataFrame
     /// <exception cref="KeyNotFoundException">
     /// Thrown when <paramref name="columnName"/> does not match an existing column.
     /// </exception>
-    public void RemoveColumn(string columnName)
+    internal void RemoveColumnCore(string columnName)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(columnName);
 
@@ -742,7 +741,7 @@ public sealed class DataFrame
             series[index] = CreateColumnSeries(property.Name, value);
         }
 
-        ValidateRowCounts(series);
+        ValidateRowTotals(series);
 
         return series;
     }
@@ -1009,9 +1008,9 @@ public sealed class DataFrame
             throw new ArgumentOutOfRangeException(nameof(count), count, "Row limit count must be zero or greater.");
         }
 
-        var resultRowCount = Math.Min(count, rowCount);
+        var resultRowTotal = Math.Min(count, rowCount);
         var limitedColumns = columns
-            .Select(column => CreateLeadingSeries(column, resultRowCount))
+            .Select(column => CreateLeadingSeries(column, resultRowTotal))
             .ToArray();
 
         return new DataFrame(schema, Array.AsReadOnly(limitedColumns));
@@ -1040,16 +1039,18 @@ public sealed class DataFrame
         }
     }
 
-    private static void ValidateRowCounts(IReadOnlyList<ISeries> columns)
+    private static void ValidateRowTotals(IReadOnlyList<ISeries> columns)
     {
-        var expectedRowCount = columns[0].Count;
+        var expectedRowTotal = columns[0].Count;
         foreach (var column in columns)
         {
-            if (column.Count != expectedRowCount)
+            if (column.Count != expectedRowTotal)
             {
                 throw new ArgumentException(
-                    $"Column '{column.Name}' contains {column.Count} values, but the DataFrame expects {expectedRowCount} values.");
+                    $"Column '{column.Name}' contains {column.Count} values, but the DataFrame expects {expectedRowTotal} values.");
             }
         }
     }
 }
+
+

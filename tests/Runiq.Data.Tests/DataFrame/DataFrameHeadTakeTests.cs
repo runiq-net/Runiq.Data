@@ -9,7 +9,7 @@ public sealed class DataFrameHeadTakeTests
     /// Verifies that Head returns the requested leading rows.
     /// </summary>
     [Fact]
-    public void Head_WhenCountIsLessThanRowCount_ReturnsFirstRows()
+    public void Head_WhenCountIsLessThanRowsCount_ReturnsFirstRows()
     {
         // This test verifies that Head returns a new DataFrame containing only the requested leading rows.
         var df = CreatePeopleDataFrame();
@@ -17,7 +17,7 @@ public sealed class DataFrameHeadTakeTests
         var result = df.Head(2);
 
         Assert.NotSame(df, result);
-        Assert.Equal(2, result.RowCount);
+        Assert.Equal(2, result.Rows.Count());
         Assert.Equal(new[] { "Ali", "Ayse" }, Names(result));
     }
 
@@ -32,8 +32,8 @@ public sealed class DataFrameHeadTakeTests
 
         var result = df.Head(0);
 
-        Assert.Equal(0, result.RowCount);
-        Assert.Equal(df.ColumnCount, result.ColumnCount);
+        Assert.Equal(0, result.Rows.Count());
+        Assert.Equal(df.Columns.Count(), result.Columns.Count());
         Assert.Equal(ColumnNames(df), ColumnNames(result));
         Assert.Equal(SchemaNames(df), SchemaNames(result));
     }
@@ -42,14 +42,14 @@ public sealed class DataFrameHeadTakeTests
     /// Verifies that Head with the exact row count returns all rows.
     /// </summary>
     [Fact]
-    public void Head_WhenCountEqualsRowCount_ReturnsAllRows()
+    public void Head_WhenCountEqualsRowsCount_ReturnsAllRows()
     {
-        // This test verifies that Head(rowCount) includes every source row.
+        // This test verifies that Head(RowsCount) includes every source row.
         var df = CreatePeopleDataFrame();
 
-        var result = df.Head(df.RowCount);
+        var result = df.Head(df.Rows.Count());
 
-        Assert.Equal(df.RowCount, result.RowCount);
+        Assert.Equal(df.Rows.Count(), result.Rows.Count());
         Assert.Equal(Names(df), Names(result));
     }
 
@@ -57,14 +57,14 @@ public sealed class DataFrameHeadTakeTests
     /// Verifies that Head with a large count returns all available rows.
     /// </summary>
     [Fact]
-    public void Head_WhenCountExceedsRowCount_ReturnsAllRows()
+    public void Head_WhenCountExceedsRowsCount_ReturnsAllRows()
     {
         // This test verifies that Head does not fail when the requested count is larger than the source row count.
         var df = CreatePeopleDataFrame();
 
         var result = df.Head(999);
 
-        Assert.Equal(df.RowCount, result.RowCount);
+        Assert.Equal(df.Rows.Count(), result.Rows.Count());
         Assert.Equal(Names(df), Names(result));
     }
 
@@ -95,7 +95,7 @@ public sealed class DataFrameHeadTakeTests
         var result = df.Head(1);
 
         Assert.NotSame(df, result);
-        Assert.Equal(3, df.RowCount);
+        Assert.Equal(3, df.Rows.Count());
         Assert.Equal(new[] { "Ali", "Ayse", "Mehmet" }, Names(df));
         Assert.Equal(new[] { "Ali" }, Names(result));
     }
@@ -139,7 +139,7 @@ public sealed class DataFrameHeadTakeTests
     /// Verifies that Take returns the requested leading rows.
     /// </summary>
     [Fact]
-    public void Take_WhenCountIsLessThanRowCount_ReturnsFirstRows()
+    public void Take_WhenCountIsLessThanRowsCount_ReturnsFirstRows()
     {
         // This test verifies that Take returns a new DataFrame containing only the requested leading rows.
         var df = CreatePeopleDataFrame();
@@ -147,7 +147,7 @@ public sealed class DataFrameHeadTakeTests
         var result = df.Take(2);
 
         Assert.NotSame(df, result);
-        Assert.Equal(2, result.RowCount);
+        Assert.Equal(2, result.Rows.Count());
         Assert.Equal(new[] { "Ali", "Ayse" }, Names(result));
     }
 
@@ -162,8 +162,8 @@ public sealed class DataFrameHeadTakeTests
 
         var result = df.Take(0);
 
-        Assert.Equal(0, result.RowCount);
-        Assert.Equal(df.ColumnCount, result.ColumnCount);
+        Assert.Equal(0, result.Rows.Count());
+        Assert.Equal(df.Columns.Count(), result.Columns.Count());
         Assert.Equal(ColumnNames(df), ColumnNames(result));
         Assert.Equal(SchemaNames(df), SchemaNames(result));
     }
@@ -172,14 +172,14 @@ public sealed class DataFrameHeadTakeTests
     /// Verifies that Take with the exact row count returns all rows.
     /// </summary>
     [Fact]
-    public void Take_WhenCountEqualsRowCount_ReturnsAllRows()
+    public void Take_WhenCountEqualsRowsCount_ReturnsAllRows()
     {
-        // This test verifies that Take(rowCount) includes every source row.
+        // This test verifies that Take(RowsCount) includes every source row.
         var df = CreatePeopleDataFrame();
 
-        var result = df.Take(df.RowCount);
+        var result = df.Take(df.Rows.Count());
 
-        Assert.Equal(df.RowCount, result.RowCount);
+        Assert.Equal(df.Rows.Count(), result.Rows.Count());
         Assert.Equal(Names(df), Names(result));
     }
 
@@ -187,14 +187,14 @@ public sealed class DataFrameHeadTakeTests
     /// Verifies that Take with a large count returns all available rows.
     /// </summary>
     [Fact]
-    public void Take_WhenCountExceedsRowCount_ReturnsAllRows()
+    public void Take_WhenCountExceedsRowsCount_ReturnsAllRows()
     {
         // This test verifies that Take does not fail when the requested count is larger than the source row count.
         var df = CreatePeopleDataFrame();
 
         var result = df.Take(999);
 
-        Assert.Equal(df.RowCount, result.RowCount);
+        Assert.Equal(df.Rows.Count(), result.Rows.Count());
         Assert.Equal(Names(df), Names(result));
     }
 
@@ -225,7 +225,7 @@ public sealed class DataFrameHeadTakeTests
         var result = df.Take(1);
 
         Assert.NotSame(df, result);
-        Assert.Equal(3, df.RowCount);
+        Assert.Equal(3, df.Rows.Count());
         Assert.Equal(new[] { "Ali", "Ayse", "Mehmet" }, Names(df));
         Assert.Equal(new[] { "Ali" }, Names(result));
     }
@@ -294,7 +294,7 @@ public sealed class DataFrameHeadTakeTests
 
         var result = df.Filter(row => row["Age"] >= 30).Head(1);
 
-        Assert.Equal(1, result.RowCount);
+        Assert.Equal(1, result.Rows.Count());
         Assert.Equal("Ali", result["Name"].GetValue(0));
     }
 
@@ -309,7 +309,7 @@ public sealed class DataFrameHeadTakeTests
 
         var result = df.Filter(row => row["Age"] >= 30).Take(1);
 
-        Assert.Equal(1, result.RowCount);
+        Assert.Equal(1, result.Rows.Count());
         Assert.Equal("Ali", result["Name"].GetValue(0));
     }
 
@@ -324,7 +324,7 @@ public sealed class DataFrameHeadTakeTests
 
         var result = df.Filter(row => row["Email"].EndsWith("@gmail.com")).Head(1);
 
-        Assert.Equal(1, result.RowCount);
+        Assert.Equal(1, result.Rows.Count());
         Assert.Equal("Ali", result["Name"].GetValue(0));
     }
 
@@ -339,7 +339,7 @@ public sealed class DataFrameHeadTakeTests
 
         var result = df.Filter(row => row["Name"].Contains("Meh")).Take(1);
 
-        Assert.Equal(1, result.RowCount);
+        Assert.Equal(1, result.Rows.Count());
         Assert.Equal("Mehmet", result["Name"].GetValue(0));
     }
 
@@ -420,14 +420,14 @@ public sealed class DataFrameHeadTakeTests
 
     private static string[] Names(global::Runiq.Data.DataFrame df)
     {
-        return Enumerable.Range(0, df.RowCount)
+        return Enumerable.Range(0, df.Rows.Count())
             .Select(index => (string)df["Name"].GetValue(index)!)
             .ToArray();
     }
 
     private static int[] Ages(global::Runiq.Data.DataFrame df)
     {
-        return Enumerable.Range(0, df.RowCount)
+        return Enumerable.Range(0, df.Rows.Count())
             .Select(index => (int)df["Age"].GetValue(index)!)
             .ToArray();
     }
@@ -442,3 +442,4 @@ public sealed class DataFrameHeadTakeTests
         return df.Schema.Columns.Select(static column => column.Name).ToArray();
     }
 }
+

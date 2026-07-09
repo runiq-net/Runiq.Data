@@ -45,27 +45,27 @@ public sealed class DataFrameTests
     }
 
     /// <summary>
-    /// Verifies that RowCount reports the shared column length.
+    /// Verifies that RowsCount reports the shared column length.
     /// </summary>
     [Fact]
-    public void RowCount_ReturnsNumberOfRows()
+    public void RowsCount_ReturnsNumberOfRows()
     {
-        // Verifies that RowCount is derived from the equal-sized columns.
+        // Verifies that RowsCount is derived from the equal-sized columns.
         var df = global::Runiq.Data.DataFrame.Create(new { Age = new[] { 30, 25 } });
 
-        Assert.Equal(2, df.RowCount);
+        Assert.Equal(2, df.Rows.Count());
     }
 
     /// <summary>
-    /// Verifies that ColumnCount reports the number of columns.
+    /// Verifies that ColumnsCount reports the number of columns.
     /// </summary>
     [Fact]
-    public void ColumnCount_ReturnsNumberOfColumns()
+    public void ColumnsCount_ReturnsNumberOfColumns()
     {
-        // Verifies that ColumnCount reflects the supplied property count.
+        // Verifies that ColumnsCount reflects the supplied property count.
         var df = global::Runiq.Data.DataFrame.Create(new { Name = new[] { "Ali" }, Age = new[] { 30 } });
 
-        Assert.Equal(2, df.ColumnCount);
+        Assert.Equal(2, df.Columns.Count());
     }
 
     /// <summary>
@@ -143,7 +143,8 @@ public sealed class DataFrameTests
         // Verifies that consumers receive a read-only column collection.
         var df = global::Runiq.Data.DataFrame.Create(new { Id = new[] { 1 } });
 
-        Assert.False(df.Columns is ICollection<ISeries> { IsReadOnly: false });
+        Assert.False((object)df.Columns is ICollection<ISeries>);
+        Assert.Equal(new[] { "Id" }, df.Columns.Select(static column => column.Name));
     }
 
     /// <summary>
@@ -175,7 +176,7 @@ public sealed class DataFrameTests
         names.Add("Can");
 
         Assert.Equal("Ayse", df["Name"].GetValue(1));
-        Assert.Equal(2, df.RowCount);
+        Assert.Equal(2, df.Rows.Count());
     }
 
     /// <summary>
@@ -336,7 +337,7 @@ public sealed class DataFrameTests
     /// Verifies that unequal column row counts are rejected.
     /// </summary>
     [Fact]
-    public void Create_WithDifferentColumnRowCounts_ThrowsArgumentException()
+    public void Create_WithDifferentColumnRowsCounts_ThrowsArgumentException()
     {
         // Verifies that every DataFrame column must have the same number of rows.
         Assert.Throws<ArgumentException>(() => global::Runiq.Data.DataFrame.Create(new
@@ -355,8 +356,8 @@ public sealed class DataFrameTests
         // Verifies that a zero-row DataFrame is valid when every column is empty.
         var df = global::Runiq.Data.DataFrame.Create(new { Name = Array.Empty<string>(), Age = Array.Empty<int>() });
 
-        Assert.Equal(0, df.RowCount);
-        Assert.Equal(2, df.ColumnCount);
+        Assert.Equal(0, df.Rows.Count());
+        Assert.Equal(2, df.Columns.Count());
     }
 
     /// <summary>
@@ -498,7 +499,7 @@ public sealed class DataFrameTests
     /// Verifies that schema-first creation still validates row counts.
     /// </summary>
     [Fact]
-    public void Create_WithSchemaDifferentRowCounts_ThrowsArgumentException()
+    public void Create_WithSchemaDifferentRowsCounts_ThrowsArgumentException()
     {
         // Verifies that schema validation does not bypass DataFrame row-count invariants.
         var schema = DataFrameSchema.Create(
@@ -524,8 +525,8 @@ public sealed class DataFrameTests
         var selected = df.Select("Name");
 
         Assert.NotSame(df, selected);
-        Assert.Equal(2, selected.RowCount);
-        Assert.Equal(1, selected.ColumnCount);
+        Assert.Equal(2, selected.Rows.Count());
+        Assert.Equal(1, selected.Columns.Count());
         Assert.Collection(selected.Columns, column => Assert.Equal("Name", column.Name));
         Assert.Collection(selected.Schema.Columns, column => Assert.Equal("Name", column.Name));
     }
@@ -546,7 +547,7 @@ public sealed class DataFrameTests
 
         var selected = df.Select("Active", "Name");
 
-        Assert.Equal(2, selected.ColumnCount);
+        Assert.Equal(2, selected.Columns.Count());
         Assert.Collection(
             selected.Columns,
             column => Assert.Equal("Active", column.Name),
@@ -611,8 +612,8 @@ public sealed class DataFrameTests
         var selected = df.Select("Age");
 
         Assert.NotSame(df, selected);
-        Assert.Equal(3, df.ColumnCount);
-        Assert.Equal(1, selected.ColumnCount);
+        Assert.Equal(3, df.Columns.Count());
+        Assert.Equal(1, selected.Columns.Count());
         Assert.Collection(
             df.Columns,
             column => Assert.Equal("Name", column.Name),
@@ -737,7 +738,8 @@ public sealed class DataFrameTests
             .Where(static property => property.SetMethod is not null)
             .Select(static property => property.Name);
 
-        Assert.False(selected.Columns is ICollection<ISeries> { IsReadOnly: false });
+        Assert.False((object)selected.Columns is ICollection<ISeries>);
+        Assert.Equal(new[] { "Age" }, selected.Columns.Select(static column => column.Name));
         Assert.Empty(writableProperties);
     }
 
@@ -745,7 +747,7 @@ public sealed class DataFrameTests
     /// Verifies that renaming one column updates only that column while preserving DataFrame shape.
     /// </summary>
     [Fact]
-    public void RenameColumn_WithOneColumn_RenamesColumnAndPreservesShapeValuesAndMetadata()
+    public void ColumnsRename_WithOneColumn_RenamesColumnAndPreservesShapeValuesAndMetadata()
     {
         // Verifies that mutable rename changes the canonical name without changing rows, order, values, or metadata.
         var df = global::Runiq.Data.DataFrame.Create(new
@@ -755,10 +757,10 @@ public sealed class DataFrameTests
             score = new int?[] { 10, null, 30 }
         });
 
-        df.RenameColumn("cust_id", "CustomerId");
+        df.Columns.Rename("cust_id", "CustomerId");
 
-        Assert.Equal(3, df.RowCount);
-        Assert.Equal(3, df.ColumnCount);
+        Assert.Equal(3, df.Rows.Count());
+        Assert.Equal(3, df.Columns.Count());
         Assert.Collection(
             df.Columns,
             column =>
@@ -805,13 +807,13 @@ public sealed class DataFrameTests
     /// Verifies that copy plus rename does not modify the original DataFrame.
     /// </summary>
     [Fact]
-    public void CopyThenRenameColumn_DoesNotModifyOriginalDataFrame()
+    public void CopyThenColumnsRename_DoesNotModifyOriginalDataFrame()
     {
         // Verifies that immutable-style rename is explicit Copy plus mutable rename.
         var df = global::Runiq.Data.DataFrame.Create(new { cust_id = new[] { 1 }, Age = new[] { 30 } });
         var renamed = df.Copy();
 
-        renamed.RenameColumn("cust_id", "CustomerId");
+        renamed.Columns.Rename("cust_id", "CustomerId");
 
         Assert.NotSame(df, renamed);
         Assert.True(df.HasColumn("cust_id"));
@@ -830,12 +832,12 @@ public sealed class DataFrameTests
     /// Verifies Pandas-like case-insensitive source lookup for column rename.
     /// </summary>
     [Fact]
-    public void RenameColumn_WithDifferentCurrentNameCasing_UsesRequestedCanonicalName()
+    public void ColumnsRename_WithDifferentCurrentNameCasing_UsesRequestedCanonicalName()
     {
         // Verifies that source lookup ignores casing and the current DataFrame uses the requested new name.
         var df = global::Runiq.Data.DataFrame.Create(new { cust_id = new[] { 1, 2 }, Age = new[] { 30, 25 } });
 
-        df.RenameColumn("CUST_ID", "CustomerId");
+        df.Columns.Rename("CUST_ID", "CustomerId");
 
         Assert.True(df.HasColumn("CustomerId"));
         Assert.True(df.HasColumn("customerid"));
@@ -852,12 +854,12 @@ public sealed class DataFrameTests
     /// Verifies that changing only canonical casing is allowed.
     /// </summary>
     [Fact]
-    public void RenameColumn_WithSameColumnDifferentCasing_UpdatesCanonicalName()
+    public void ColumnsRename_WithSameColumnDifferentCasing_UpdatesCanonicalName()
     {
         // Verifies that same-column casing changes are not treated as conflicts.
         var df = global::Runiq.Data.DataFrame.Create(new { age = new[] { 30, 25 }, Name = new[] { "Ali", "Ayse" } });
 
-        df.RenameColumn("age", "Age");
+        df.Columns.Rename("age", "Age");
 
         Assert.True(df.HasColumn("Age"));
         Assert.True(df.HasColumn("age"));
@@ -874,12 +876,12 @@ public sealed class DataFrameTests
     [InlineData(null)]
     [InlineData("")]
     [InlineData("   ")]
-    public void RenameColumn_WithInvalidCurrentName_Throws(string? currentName)
+    public void ColumnsRename_WithInvalidCurrentName_Throws(string? currentName)
     {
         // Verifies that the source column name must be meaningful.
         var df = global::Runiq.Data.DataFrame.Create(new { Age = new[] { 30 } });
 
-        Assert.ThrowsAny<ArgumentException>(() => df.RenameColumn(currentName!, "Years"));
+        Assert.ThrowsAny<ArgumentException>(() => df.Columns.Rename(currentName!, "Years"));
     }
 
     /// <summary>
@@ -890,24 +892,24 @@ public sealed class DataFrameTests
     [InlineData(null)]
     [InlineData("")]
     [InlineData("   ")]
-    public void RenameColumn_WithInvalidNewName_Throws(string? newName)
+    public void ColumnsRename_WithInvalidNewName_Throws(string? newName)
     {
         // Verifies that the target column name must be meaningful.
         var df = global::Runiq.Data.DataFrame.Create(new { Age = new[] { 30 } });
 
-        Assert.ThrowsAny<ArgumentException>(() => df.RenameColumn("Age", newName!));
+        Assert.ThrowsAny<ArgumentException>(() => df.Columns.Rename("Age", newName!));
     }
 
     /// <summary>
     /// Verifies that missing source columns are rejected clearly.
     /// </summary>
     [Fact]
-    public void RenameColumn_WithMissingCurrentName_ThrowsClearException()
+    public void ColumnsRename_WithMissingCurrentName_ThrowsClearException()
     {
         // Verifies that rename reports a missing source column instead of silently ignoring it.
         var df = global::Runiq.Data.DataFrame.Create(new { Age = new[] { 30 } });
 
-        var exception = Assert.Throws<KeyNotFoundException>(() => df.RenameColumn("MissingColumn", "Years"));
+        var exception = Assert.Throws<KeyNotFoundException>(() => df.Columns.Rename("MissingColumn", "Years"));
 
         Assert.Contains("MissingColumn", exception.Message);
         Assert.Contains("exists", exception.Message);
@@ -917,12 +919,12 @@ public sealed class DataFrameTests
     /// Verifies that target names cannot conflict with another existing column.
     /// </summary>
     [Fact]
-    public void RenameColumn_WithConflictingNewName_ThrowsArgumentException()
+    public void ColumnsRename_WithConflictingNewName_ThrowsArgumentException()
     {
         // Verifies that rename cannot produce duplicate columns.
         var df = global::Runiq.Data.DataFrame.Create(new { Age = new[] { 30 }, Name = new[] { "Ali" } });
 
-        var exception = Assert.Throws<ArgumentException>(() => df.RenameColumn("Age", "Name"));
+        var exception = Assert.Throws<ArgumentException>(() => df.Columns.Rename("Age", "Name"));
 
         Assert.Contains("Name", exception.Message);
         Assert.Contains("conflicts", exception.Message);
@@ -932,12 +934,12 @@ public sealed class DataFrameTests
     /// Verifies that target name conflicts are detected case-insensitively.
     /// </summary>
     [Fact]
-    public void RenameColumn_WithConflictingNewNameDifferentCasing_ThrowsArgumentException()
+    public void ColumnsRename_WithConflictingNewNameDifferentCasing_ThrowsArgumentException()
     {
         // Verifies that target conflict detection matches DataFrame lookup semantics.
         var df = global::Runiq.Data.DataFrame.Create(new { Age = new[] { 30 }, Name = new[] { "Ali" } });
 
-        var exception = Assert.Throws<ArgumentException>(() => df.RenameColumn("Age", "name"));
+        var exception = Assert.Throws<ArgumentException>(() => df.Columns.Rename("Age", "name"));
 
         Assert.Contains("name", exception.Message);
         Assert.Contains("conflicts", exception.Message);
@@ -960,8 +962,8 @@ public sealed class DataFrameTests
         var dropped = df.Drop("Age");
 
         Assert.NotSame(df, dropped);
-        Assert.Equal(2, dropped.RowCount);
-        Assert.Equal(2, dropped.ColumnCount);
+        Assert.Equal(2, dropped.Rows.Count());
+        Assert.Equal(2, dropped.Columns.Count());
         Assert.False(dropped.HasColumn("Age"));
         Assert.Collection(
             dropped.Columns,
@@ -986,7 +988,7 @@ public sealed class DataFrameTests
 
         var dropped = df.Drop("DebugFlag", "InternalNote");
 
-        Assert.Equal(2, dropped.ColumnCount);
+        Assert.Equal(2, dropped.Columns.Count());
         Assert.False(dropped.HasColumn("DebugFlag"));
         Assert.False(dropped.HasColumn("InternalNote"));
         Assert.Collection(
@@ -1082,8 +1084,8 @@ public sealed class DataFrameTests
         var dropped = df.Drop("Age");
 
         Assert.NotSame(df, dropped);
-        Assert.Equal(3, df.ColumnCount);
-        Assert.Equal(2, dropped.ColumnCount);
+        Assert.Equal(3, df.Columns.Count());
+        Assert.Equal(2, dropped.Columns.Count());
         Assert.True(df.HasColumn("Age"));
         Assert.Collection(
             df.Columns,
@@ -1229,7 +1231,8 @@ public sealed class DataFrameTests
             .Where(static property => property.SetMethod is not null)
             .Select(static property => property.Name);
 
-        Assert.False(dropped.Columns is ICollection<ISeries> { IsReadOnly: false });
+        Assert.False((object)dropped.Columns is ICollection<ISeries>);
+        Assert.Equal(new[] { "Age" }, dropped.Columns.Select(static column => column.Name));
         Assert.Empty(writableProperties);
     }
 
@@ -1243,3 +1246,4 @@ public sealed class DataFrameTests
         public int[] ID { get; } = [1];
     }
 }
+
