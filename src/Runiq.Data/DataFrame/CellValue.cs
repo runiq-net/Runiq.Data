@@ -5,8 +5,8 @@ namespace Runiq.Data;
 /// </summary>
 /// <remarks>
 /// <para>
-/// <see cref="CellValue"/> is returned by <see cref="DataFrameFilterRow"/> to keep predicates
-/// natural, for example <c>row["Age"] &gt;= 30</c>, while <see cref="DataFrameRow"/> continues
+/// <see cref="CellValue"/> is returned by <see cref="FilterRow"/> to keep predicates
+/// natural, for example <c>row["Age"] &gt;= 30</c>, while <see cref="Row"/> continues
 /// to expose raw object values for direct row access compatibility. Numeric comparison
 /// operators support <see cref="int"/>, <see cref="long"/>, <see cref="decimal"/>, and
 /// <see cref="double"/> values when the stored value has the same CLR type as the literal being

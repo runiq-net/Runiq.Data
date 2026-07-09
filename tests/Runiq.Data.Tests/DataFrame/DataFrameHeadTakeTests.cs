@@ -344,10 +344,10 @@ public sealed class DataFrameHeadTakeTests
     }
 
     /// <summary>
-    /// Verifies that DataFrameRow indexer behavior remains raw object access.
+    /// Verifies that Row indexer behavior remains raw object access.
     /// </summary>
     [Fact]
-    public void DataFrameRowIndexer_AfterHeadTakeFeature_ReturnsRawObjectValues()
+    public void RowIndexer_AfterHeadTakeFeature_ReturnsRawObjectValues()
     {
         // This test verifies that row access still returns raw object values and not filter helper cells.
         var row = CreatePeopleDataFrame().GetRow(0);

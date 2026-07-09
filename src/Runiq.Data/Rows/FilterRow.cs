@@ -5,7 +5,7 @@ namespace Runiq.Data;
 /// </summary>
 /// <remarks>
 /// <para>
-/// <see cref="DataFrameFilterRow"/> is separate from <see cref="DataFrameRow"/> so direct row
+/// <see cref="FilterRow"/> is separate from <see cref="Row"/> so direct row
 /// access can continue returning raw object values while filtering predicates receive
 /// <see cref="CellValue"/> instances that support natural comparison operators.
 /// </para>
@@ -14,12 +14,12 @@ namespace Runiq.Data;
 /// fail-fast validation for missing or invalid columns.
 /// </para>
 /// </remarks>
-public sealed class DataFrameFilterRow
+public sealed class FilterRow
 {
     private readonly DataFrame dataFrame;
     private readonly int rowIndex;
 
-    internal DataFrameFilterRow(DataFrame dataFrame, int rowIndex)
+    internal FilterRow(DataFrame dataFrame, int rowIndex)
     {
         this.dataFrame = dataFrame;
         this.rowIndex = rowIndex;

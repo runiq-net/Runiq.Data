@@ -127,7 +127,7 @@ public sealed class DataFrameFilterTests
     {
         // This test verifies that a predicate must be supplied.
         var df = CreatePeopleDataFrame();
-        Func<global::Runiq.Data.DataFrameFilterRow, bool> predicate = null!;
+        Func<global::Runiq.Data.FilterRow, bool> predicate = null!;
 
         Assert.Throws<ArgumentNullException>(() => df.Filter(predicate));
     }

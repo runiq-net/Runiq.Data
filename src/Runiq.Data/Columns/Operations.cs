@@ -6,11 +6,11 @@ namespace Runiq.Data;
 /// <summary>
 /// Provides column inspection and mutation operations for a DataFrame instance.
 /// </summary>
-public sealed class DataFrameColumns : IEnumerable<ISeries>
+public sealed class ColumnOperations : IEnumerable<ISeries>
 {
     private readonly DataFrame dataFrame;
 
-    internal DataFrameColumns(DataFrame dataFrame)
+    internal ColumnOperations(DataFrame dataFrame)
     {
         this.dataFrame = dataFrame;
     }

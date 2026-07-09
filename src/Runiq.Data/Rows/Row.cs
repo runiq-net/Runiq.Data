@@ -8,12 +8,12 @@ namespace Runiq.Data;
 /// fail-fast validation for missing or invalid column names. Values are read from the selected
 /// zero-based row index and cannot be mutated through this view.
 /// </remarks>
-public sealed class DataFrameRow
+public sealed class Row
 {
     private readonly DataFrame dataFrame;
     private readonly int rowIndex;
 
-    internal DataFrameRow(DataFrame dataFrame, int rowIndex)
+    internal Row(DataFrame dataFrame, int rowIndex)
     {
         this.dataFrame = dataFrame;
         this.rowIndex = rowIndex;

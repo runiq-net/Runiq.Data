@@ -3,7 +3,7 @@ namespace Runiq.Data.Tests.DataFrame;
 /// <summary>
 /// Verifies direct mutable row replacement behavior on DataFrame.
 /// </summary>
-public sealed class DataFrameRowUpdateTests
+public sealed class RowUpdateTests
 {
     /// <summary>
     /// Verifies that RowsUpdate replaces the requested row and leaves surrounding rows intact.

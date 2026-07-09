@@ -3,7 +3,7 @@ namespace Runiq.Data.Tests.DataFrame;
 /// <summary>
 /// Verifies mutable row removal behavior through the Rows facade.
 /// </summary>
-public sealed class DataFrameRowRemovalTests
+public sealed class RowRemovalTests
 {
     /// <summary>
     /// Verifies that Rows.Remove removes the requested row and mutates the current DataFrame.

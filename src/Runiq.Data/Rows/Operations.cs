@@ -3,11 +3,11 @@ namespace Runiq.Data;
 /// <summary>
 /// Provides row mutation operations for a DataFrame instance.
 /// </summary>
-public sealed class DataFrameRows
+public sealed class RowOperations
 {
     private readonly DataFrame dataFrame;
 
-    internal DataFrameRows(DataFrame dataFrame)
+    internal RowOperations(DataFrame dataFrame)
     {
         this.dataFrame = dataFrame;
     }
