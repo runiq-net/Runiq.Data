@@ -21,7 +21,8 @@ namespace Runiq.Data;
 /// names for convenience. Projection methods such as <see cref="Select(string[])"/> and
 /// <see cref="Drop(string[])"/> return new DataFrame instances. Direct mutation methods such as
 /// <see cref="AddColumn{T}(string, IEnumerable{T})"/>, <see cref="RemoveColumn(string)"/>,
-/// <see cref="RenameColumn(string, string)"/>, and <see cref="AddRow(object)"/> update the
+/// <see cref="RenameColumn(string, string)"/>, <see cref="AddRow(object)"/>, and
+/// <see cref="UpdateRow(int, object)"/> update the
 /// current instance. Call <see cref="Copy"/> first when a separate mutable branch is needed.
 /// </para>
 /// </remarks>
@@ -200,7 +201,8 @@ public sealed class DataFrame
     /// <remarks>
     /// The returned DataFrame owns new column snapshots, so mutating the copy with
     /// <see cref="AddColumn{T}(string, IEnumerable{T})"/>, <see cref="RemoveColumn(string)"/>,
-    /// <see cref="RenameColumn(string, string)"/>, or <see cref="AddRow(object)"/> does not
+    /// <see cref="RenameColumn(string, string)"/>, <see cref="AddRow(object)"/>, or
+    /// <see cref="UpdateRow(int, object)"/> does not
     /// mutate the original instance. Mutating the original after copying likewise does not mutate
     /// the copy. Use this method when immutable-style workflows need an explicit branch before
     /// applying direct mutations.
@@ -512,6 +514,44 @@ public sealed class DataFrame
         columns = Array.AsReadOnly(appendedColumns);
         rowCount = appendedColumns.Length == 0 ? 0 : appendedColumns[0].Count;
         columnsByName = CreateColumnLookup(appendedColumns);
+    }
+
+    /// <summary>
+    /// Replaces the full row at the specified zero-based index by mutating the current DataFrame.
+    /// </summary>
+    /// <param name="index">The zero-based row index to replace.</param>
+    /// <param name="row">
+    /// An anonymous or simple object whose public readable properties exactly match the current
+    /// DataFrame columns.
+    /// </param>
+    /// <remarks>
+    /// The DataFrame instance, row count, column count, column order, schema, column types, and
+    /// nullability metadata are preserved. Validation fails fast when <paramref name="index"/> is
+    /// outside the current row range, when <paramref name="row"/> is <see langword="null"/>, when
+    /// any required field is missing, when any extra field is supplied, or when a value is not
+    /// compatible with the target column type.
+    /// </remarks>
+    /// <exception cref="ArgumentException">
+    /// Thrown when the row does not exactly match the DataFrame schema or contains incompatible values.
+    /// </exception>
+    /// <exception cref="ArgumentNullException">
+    /// Thrown when <paramref name="row"/> is <see langword="null"/>.
+    /// </exception>
+    /// <exception cref="ArgumentOutOfRangeException">
+    /// Thrown when <paramref name="index"/> is negative or outside the DataFrame row range.
+    /// </exception>
+    public void UpdateRow(int index, object row)
+    {
+        ValidateRowIndex(index);
+
+        var rowValues = CreateValidatedRowValues(row);
+        var updatedColumns = columns
+            .Select(column => CreateUpdatedSeries(column, index, rowValues[column.Name]))
+            .ToArray();
+
+        columns = Array.AsReadOnly(updatedColumns);
+        rowCount = updatedColumns.Length == 0 ? 0 : updatedColumns[0].Count;
+        columnsByName = CreateColumnLookup(updatedColumns);
     }
 
     /// <summary>
@@ -893,6 +933,18 @@ public sealed class DataFrame
         return (ISeries)genericCreateMethod.Invoke(null, [column.Name, values])!;
     }
 
+    private static ISeries CreateUpdatedSeries(ISeries column, int rowIndex, object? updatedValue)
+    {
+        var values = Array.CreateInstance(column.DataType, column.Count);
+        for (var index = 0; index < column.Count; index++)
+        {
+            values.SetValue(index == rowIndex ? updatedValue : column.GetValue(index), index);
+        }
+
+        var genericCreateMethod = CreateSeriesMethod.MakeGenericMethod(column.DataType);
+        return (ISeries)genericCreateMethod.Invoke(null, [column.Name, values])!;
+    }
+
     private IReadOnlyDictionary<string, object?> CreateValidatedRowValues(object row)
     {
         ArgumentNullException.ThrowIfNull(row);
@@ -977,6 +1029,17 @@ public sealed class DataFrame
 
         var genericCreateMethod = CreateSeriesMethod.MakeGenericMethod(column.DataType);
         return (ISeries)genericCreateMethod.Invoke(null, [column.Name, values])!;
+    }
+
+    private void ValidateRowIndex(int index)
+    {
+        if (index < 0 || index >= rowCount)
+        {
+            throw new ArgumentOutOfRangeException(
+                nameof(index),
+                index,
+                $"Row index must be between 0 and {rowCount - 1}, but the DataFrame contains {rowCount} rows.");
+        }
     }
 
     private static void ValidateRowCounts(IReadOnlyList<ISeries> columns)
