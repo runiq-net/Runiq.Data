@@ -226,6 +226,91 @@ public sealed class DataFrame
     }
 
     /// <summary>
+    /// Starts an inner join with another DataFrame.
+    /// </summary>
+    /// <param name="right">The right DataFrame to join with the current left DataFrame.</param>
+    /// <returns>
+    /// A join condition builder. Calling one of its <c>On</c> overloads executes the inner join
+    /// and returns a new DataFrame without mutating either source.
+    /// </returns>
+    /// <remarks>
+    /// Inner joins return only rows whose key exists on both sides. Same-name keys can be
+    /// supplied with <c>On("Id")</c> or as composite keys with <c>On(["CompanyId", "OrderId"])</c>.
+    /// Different key names can be supplied with <c>On("LeftId", "RightId")</c> or tuple-based
+    /// composite key pairs.
+    /// </remarks>
+    /// <exception cref="ArgumentNullException">Thrown when <paramref name="right"/> is null.</exception>
+    public DataFrameJoin InnerJoin(DataFrame right)
+    {
+        ArgumentNullException.ThrowIfNull(right);
+        return new DataFrameJoin(this, right, JoinKind.Inner);
+    }
+
+    /// <summary>
+    /// Starts a left join with another DataFrame.
+    /// </summary>
+    /// <param name="right">The right DataFrame to join with the current left DataFrame.</param>
+    /// <returns>
+    /// A join condition builder. Calling one of its <c>On</c> overloads executes the left join
+    /// and returns a new DataFrame without mutating either source.
+    /// </returns>
+    /// <remarks>
+    /// Left joins return every left row and fill right-side result columns with null when no
+    /// right row matches. Same-name keys can be supplied with <c>On("Id")</c> or as composite
+    /// keys with <c>On(["CompanyId", "OrderId"])</c>. Different key names can be supplied with
+    /// <c>On("LeftId", "RightId")</c> or tuple-based composite key pairs.
+    /// </remarks>
+    /// <exception cref="ArgumentNullException">Thrown when <paramref name="right"/> is null.</exception>
+    public DataFrameJoin LeftJoin(DataFrame right)
+    {
+        ArgumentNullException.ThrowIfNull(right);
+        return new DataFrameJoin(this, right, JoinKind.Left);
+    }
+
+    /// <summary>
+    /// Starts a right join with another DataFrame.
+    /// </summary>
+    /// <param name="right">The right DataFrame to join with the current left DataFrame.</param>
+    /// <returns>
+    /// A join condition builder. Calling one of its <c>On</c> overloads executes the right join
+    /// and returns a new DataFrame without mutating either source.
+    /// </returns>
+    /// <remarks>
+    /// Right joins return every right row and fill left-side result columns with null when no
+    /// left row matches. Same-name keys can be supplied with <c>On("Id")</c> or as composite
+    /// keys with <c>On(["CompanyId", "OrderId"])</c>. Different key names can be supplied with
+    /// <c>On("LeftId", "RightId")</c> or tuple-based composite key pairs.
+    /// </remarks>
+    /// <exception cref="ArgumentNullException">Thrown when <paramref name="right"/> is null.</exception>
+    public DataFrameJoin RightJoin(DataFrame right)
+    {
+        ArgumentNullException.ThrowIfNull(right);
+        return new DataFrameJoin(this, right, JoinKind.Right);
+    }
+
+    /// <summary>
+    /// Starts a full join with another DataFrame.
+    /// </summary>
+    /// <param name="right">The right DataFrame to join with the current left DataFrame.</param>
+    /// <returns>
+    /// A join condition builder. Calling one of its <c>On</c> overloads executes the full join
+    /// and returns a new DataFrame without mutating either source.
+    /// </returns>
+    /// <remarks>
+    /// Full joins return every row from both sides, preserving left-join ordering first and then
+    /// appending unmatched right rows in right source order. Same-name keys can be supplied with
+    /// <c>On("Id")</c> or as composite keys with <c>On(["CompanyId", "OrderId"])</c>. Different
+    /// key names can be supplied with <c>On("LeftId", "RightId")</c> or tuple-based composite
+    /// key pairs.
+    /// </remarks>
+    /// <exception cref="ArgumentNullException">Thrown when <paramref name="right"/> is null.</exception>
+    public DataFrameJoin FullJoin(DataFrame right)
+    {
+        ArgumentNullException.ThrowIfNull(right);
+        return new DataFrameJoin(this, right, JoinKind.Full);
+    }
+
+    /// <summary>
     /// Sums the non-null numeric values in the specified column without mutating the source DataFrame.
     /// </summary>
     /// <param name="columnName">The numeric column name to aggregate using case-insensitive lookup.</param>

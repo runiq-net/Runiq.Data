@@ -27,6 +27,49 @@ var departmentSummary = employees
 
 Console.WriteLine("Department multi-aggregation summary");
 Print(departmentSummary);
+Console.WriteLine();
+
+var joinEmployees = DataFrame.Create(new
+{
+    EmployeeId = new[] { 1, 2, 3 },
+    Name = new[] { "Ali", "Ayşe", "Mehmet" },
+    DepartmentId = new[] { 10, 20, 30 }
+});
+
+var departments = DataFrame.Create(new
+{
+    Id = new[] { 10, 20, 40 },
+    Department = new[] { "Engineering", "Finance", "Sales" }
+});
+
+var employeeDepartments = joinEmployees
+    .LeftJoin(departments)
+    .On("DepartmentId", "Id");
+
+Console.WriteLine("Employee departments left join");
+Print(employeeDepartments);
+Console.WriteLine();
+
+var orders = DataFrame.Create(new
+{
+    CompanyId = new[] { 1, 1 },
+    OrderId = new[] { 100, 101 },
+    Customer = new[] { "Ali", "Ayse" }
+});
+
+var orderLines = DataFrame.Create(new
+{
+    CompanyId = new[] { 1, 1 },
+    OrderId = new[] { 100, 102 },
+    Product = new[] { "Keyboard", "Mouse" }
+});
+
+var orderLineMatches = orders
+    .InnerJoin(orderLines)
+    .On(["CompanyId", "OrderId"]);
+
+Console.WriteLine("Order lines composite key inner join");
+Print(orderLineMatches);
 
 static void Print(DataFrame dataFrame)
 {
@@ -36,6 +79,6 @@ static void Print(DataFrame dataFrame)
     for (var rowIndex = 0; rowIndex < dataFrame.Rows.Count(); rowIndex++)
     {
         var values = columnNames.Select(columnName => dataFrame[columnName].GetValue(rowIndex));
-        Console.WriteLine(string.Join(" | ", values));
+        Console.WriteLine(string.Join(" | ", values.Select(static value => value?.ToString() ?? "null")));
     }
 }
