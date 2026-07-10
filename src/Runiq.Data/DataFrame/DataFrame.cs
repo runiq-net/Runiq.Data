@@ -226,6 +226,100 @@ public sealed class DataFrame
     }
 
     /// <summary>
+    /// Sums the non-null numeric values in the specified column without mutating the source DataFrame.
+    /// </summary>
+    /// <param name="columnName">The numeric column name to aggregate using case-insensitive lookup.</param>
+    /// <returns>
+    /// The sum using the column numeric type contract: small signed and unsigned integers return
+    /// <see cref="int"/>, <see cref="uint"/> returns <see cref="uint"/>, <see cref="long"/>
+    /// returns <see cref="long"/>, <see cref="ulong"/> returns <see cref="ulong"/>,
+    /// <see cref="float"/> returns <see cref="float"/>, <see cref="double"/> returns
+    /// <see cref="double"/>, and <see cref="decimal"/> returns <see cref="decimal"/>.
+    /// </returns>
+    /// <exception cref="ArgumentException">
+    /// Thrown when <paramref name="columnName"/> is empty or whitespace, the column is empty,
+    /// contains null values, contains values incompatible with its declared type, or is not numeric.
+    /// </exception>
+    /// <exception cref="ArgumentNullException">
+    /// Thrown when <paramref name="columnName"/> is <see langword="null"/>.
+    /// </exception>
+    /// <exception cref="KeyNotFoundException">Thrown when no matching column exists.</exception>
+    /// <exception cref="OverflowException">
+    /// Thrown when checked integer or decimal addition overflows.
+    /// </exception>
+    public object Sum(string columnName)
+    {
+        var column = GetColumn(columnName);
+        ValidateAggregationColumnHasRows(column);
+        return SumColumn(column);
+    }
+
+    /// <summary>
+    /// Averages the non-null numeric values in the specified column as a <see cref="double"/> without mutating the source DataFrame.
+    /// </summary>
+    /// <param name="columnName">The numeric column name to aggregate using case-insensitive lookup.</param>
+    /// <returns>The arithmetic average of the column values as a <see cref="double"/>.</returns>
+    /// <exception cref="ArgumentException">
+    /// Thrown when <paramref name="columnName"/> is empty or whitespace, the column is empty,
+    /// contains null values, contains values incompatible with its declared type, or is not numeric.
+    /// </exception>
+    /// <exception cref="ArgumentNullException">
+    /// Thrown when <paramref name="columnName"/> is <see langword="null"/>.
+    /// </exception>
+    /// <exception cref="KeyNotFoundException">Thrown when no matching column exists.</exception>
+    /// <exception cref="OverflowException">
+    /// Thrown when checked integer or decimal addition overflows before division.
+    /// </exception>
+    public double Average(string columnName)
+    {
+        var column = GetColumn(columnName);
+        ValidateAggregationColumnHasRows(column);
+        return AverageColumn(column);
+    }
+
+    /// <summary>
+    /// Returns the first minimum non-null value in the specified comparable column without mutating the source DataFrame.
+    /// </summary>
+    /// <param name="columnName">The comparable column name to aggregate using case-insensitive lookup.</param>
+    /// <returns>The first minimum value in the column.</returns>
+    /// <exception cref="ArgumentException">
+    /// Thrown when <paramref name="columnName"/> is empty or whitespace, the column is empty,
+    /// contains null values, contains values incompatible with its declared type, or contains
+    /// values that cannot be compared.
+    /// </exception>
+    /// <exception cref="ArgumentNullException">
+    /// Thrown when <paramref name="columnName"/> is <see langword="null"/>.
+    /// </exception>
+    /// <exception cref="KeyNotFoundException">Thrown when no matching column exists.</exception>
+    public object? Min(string columnName)
+    {
+        var column = GetColumn(columnName);
+        ValidateAggregationColumnHasRows(column);
+        return MinOrMaxColumn(column, findMaximum: false);
+    }
+
+    /// <summary>
+    /// Returns the first maximum non-null value in the specified comparable column without mutating the source DataFrame.
+    /// </summary>
+    /// <param name="columnName">The comparable column name to aggregate using case-insensitive lookup.</param>
+    /// <returns>The first maximum value in the column.</returns>
+    /// <exception cref="ArgumentException">
+    /// Thrown when <paramref name="columnName"/> is empty or whitespace, the column is empty,
+    /// contains null values, contains values incompatible with its declared type, or contains
+    /// values that cannot be compared.
+    /// </exception>
+    /// <exception cref="ArgumentNullException">
+    /// Thrown when <paramref name="columnName"/> is <see langword="null"/>.
+    /// </exception>
+    /// <exception cref="KeyNotFoundException">Thrown when no matching column exists.</exception>
+    public object? Max(string columnName)
+    {
+        var column = GetColumn(columnName);
+        ValidateAggregationColumnHasRows(column);
+        return MinOrMaxColumn(column, findMaximum: true);
+    }
+
+    /// <summary>
     /// Projects the DataFrame to a new immutable DataFrame containing only the requested columns.
     /// </summary>
     /// <param name="columnNames">
@@ -972,6 +1066,302 @@ public sealed class DataFrame
 
         var genericCreateMethod = CreateSeriesMethod.MakeGenericMethod(column.DataType);
         return (ISeries)genericCreateMethod.Invoke(null, [column.Name, values])!;
+    }
+
+    private static void ValidateAggregationColumnHasRows(ISeries column)
+    {
+        if (column.Count == 0)
+        {
+            throw new ArgumentException($"Column '{column.Name}' contains no values to aggregate.");
+        }
+    }
+
+    private static object SumColumn(ISeries column)
+    {
+        var numericType = GetNumericAggregationType(column);
+
+        if (numericType == typeof(byte) || numericType == typeof(sbyte) || numericType == typeof(short) ||
+            numericType == typeof(ushort) || numericType == typeof(int))
+        {
+            var sum = 0;
+            for (var index = 0; index < column.Count; index++)
+            {
+                sum = checked(sum + GetInt32AggregationValue(column, numericType, index));
+            }
+
+            return sum;
+        }
+
+        if (numericType == typeof(uint))
+        {
+            var sum = 0u;
+            for (var index = 0; index < column.Count; index++)
+            {
+                sum = checked(sum + GetAggregationValue<uint>(column, index));
+            }
+
+            return sum;
+        }
+
+        if (numericType == typeof(long))
+        {
+            var sum = 0L;
+            for (var index = 0; index < column.Count; index++)
+            {
+                sum = checked(sum + GetAggregationValue<long>(column, index));
+            }
+
+            return sum;
+        }
+
+        if (numericType == typeof(ulong))
+        {
+            var sum = 0UL;
+            for (var index = 0; index < column.Count; index++)
+            {
+                sum = checked(sum + GetAggregationValue<ulong>(column, index));
+            }
+
+            return sum;
+        }
+
+        if (numericType == typeof(float))
+        {
+            var sum = 0f;
+            for (var index = 0; index < column.Count; index++)
+            {
+                sum += GetAggregationValue<float>(column, index);
+            }
+
+            return sum;
+        }
+
+        if (numericType == typeof(double))
+        {
+            var sum = 0d;
+            for (var index = 0; index < column.Count; index++)
+            {
+                sum += GetAggregationValue<double>(column, index);
+            }
+
+            return sum;
+        }
+
+        if (numericType == typeof(decimal))
+        {
+            var sum = 0m;
+            for (var index = 0; index < column.Count; index++)
+            {
+                sum = checked(sum + GetAggregationValue<decimal>(column, index));
+            }
+
+            return sum;
+        }
+
+        throw new ArgumentException($"Column '{column.Name}' has data type '{column.DataType}' and is not numeric.");
+    }
+
+    private static double AverageColumn(ISeries column)
+    {
+        var numericType = GetNumericAggregationType(column);
+
+        if (numericType == typeof(byte) || numericType == typeof(sbyte) || numericType == typeof(short) ||
+            numericType == typeof(ushort) || numericType == typeof(int))
+        {
+            var sum = 0;
+            for (var index = 0; index < column.Count; index++)
+            {
+                sum = checked(sum + GetInt32AggregationValue(column, numericType, index));
+            }
+
+            return (double)sum / column.Count;
+        }
+
+        if (numericType == typeof(uint))
+        {
+            var sum = 0u;
+            for (var index = 0; index < column.Count; index++)
+            {
+                sum = checked(sum + GetAggregationValue<uint>(column, index));
+            }
+
+            return (double)sum / column.Count;
+        }
+
+        if (numericType == typeof(long))
+        {
+            var sum = 0L;
+            for (var index = 0; index < column.Count; index++)
+            {
+                sum = checked(sum + GetAggregationValue<long>(column, index));
+            }
+
+            return (double)sum / column.Count;
+        }
+
+        if (numericType == typeof(ulong))
+        {
+            var sum = 0UL;
+            for (var index = 0; index < column.Count; index++)
+            {
+                sum = checked(sum + GetAggregationValue<ulong>(column, index));
+            }
+
+            return (double)sum / column.Count;
+        }
+
+        if (numericType == typeof(float))
+        {
+            var sum = 0f;
+            for (var index = 0; index < column.Count; index++)
+            {
+                sum += GetAggregationValue<float>(column, index);
+            }
+
+            return sum / column.Count;
+        }
+
+        if (numericType == typeof(double))
+        {
+            var sum = 0d;
+            for (var index = 0; index < column.Count; index++)
+            {
+                sum += GetAggregationValue<double>(column, index);
+            }
+
+            return sum / column.Count;
+        }
+
+        if (numericType == typeof(decimal))
+        {
+            var sum = 0m;
+            for (var index = 0; index < column.Count; index++)
+            {
+                sum = checked(sum + GetAggregationValue<decimal>(column, index));
+            }
+
+            return (double)(sum / column.Count);
+        }
+
+        throw new ArgumentException($"Column '{column.Name}' has data type '{column.DataType}' and is not numeric.");
+    }
+
+    private static object? MinOrMaxColumn(ISeries column, bool findMaximum)
+    {
+        var expectedType = Nullable.GetUnderlyingType(column.DataType) ?? column.DataType;
+        if (!typeof(IComparable).IsAssignableFrom(expectedType))
+        {
+            throw new ArgumentException(
+                $"Column '{column.Name}' has data type '{column.DataType}' and cannot be compared safely.");
+        }
+
+        var result = GetNonNullAggregationValue(column, 0);
+        if (!expectedType.IsInstanceOfType(result))
+        {
+            throw CreateIncompatibleAggregationValueException(column, result);
+        }
+
+        var resultComparable = (IComparable)result;
+        for (var index = 1; index < column.Count; index++)
+        {
+            var candidate = GetNonNullAggregationValue(column, index);
+            if (!expectedType.IsInstanceOfType(candidate))
+            {
+                throw CreateIncompatibleAggregationValueException(column, candidate);
+            }
+
+            try
+            {
+                var comparison = resultComparable.CompareTo(candidate);
+                if ((findMaximum && comparison < 0) || (!findMaximum && comparison > 0))
+                {
+                    result = candidate;
+                    resultComparable = (IComparable)candidate;
+                }
+            }
+            catch (ArgumentException exception)
+            {
+                throw new ArgumentException(
+                    $"Column '{column.Name}' contains values that cannot be compared safely.",
+                    exception);
+            }
+        }
+
+        return result;
+    }
+
+    private static Type GetNumericAggregationType(ISeries column)
+    {
+        var dataType = Nullable.GetUnderlyingType(column.DataType) ?? column.DataType;
+        if (dataType == typeof(byte) || dataType == typeof(sbyte) || dataType == typeof(short) ||
+            dataType == typeof(ushort) || dataType == typeof(int) || dataType == typeof(uint) ||
+            dataType == typeof(long) || dataType == typeof(ulong) || dataType == typeof(float) ||
+            dataType == typeof(double) || dataType == typeof(decimal))
+        {
+            return dataType;
+        }
+
+        throw new ArgumentException($"Column '{column.Name}' has data type '{column.DataType}' and is not numeric.");
+    }
+
+    private static T GetAggregationValue<T>(ISeries column, int index)
+        where T : struct
+    {
+        var value = GetNonNullAggregationValue(column, index);
+        if (value is T typedValue)
+        {
+            return typedValue;
+        }
+
+        throw CreateIncompatibleAggregationValueException(column, value);
+    }
+
+    private static int GetInt32AggregationValue(ISeries column, Type numericType, int index)
+    {
+        var value = GetNonNullAggregationValue(column, index);
+        if (numericType == typeof(byte) && value is byte byteValue)
+        {
+            return byteValue;
+        }
+
+        if (numericType == typeof(sbyte) && value is sbyte sbyteValue)
+        {
+            return sbyteValue;
+        }
+
+        if (numericType == typeof(short) && value is short shortValue)
+        {
+            return shortValue;
+        }
+
+        if (numericType == typeof(ushort) && value is ushort ushortValue)
+        {
+            return ushortValue;
+        }
+
+        if (numericType == typeof(int) && value is int intValue)
+        {
+            return intValue;
+        }
+
+        throw CreateIncompatibleAggregationValueException(column, value);
+    }
+
+    private static object GetNonNullAggregationValue(ISeries column, int index)
+    {
+        var value = column.GetValue(index);
+        if (value is null)
+        {
+            throw new ArgumentException($"Column '{column.Name}' contains null values, which are not supported for aggregation.");
+        }
+
+        return value;
+    }
+
+    private static ArgumentException CreateIncompatibleAggregationValueException(ISeries column, object value)
+    {
+        return new ArgumentException(
+            $"Column '{column.Name}' contains value type '{value.GetType()}' that does not match declared data type '{column.DataType}'.");
     }
 
     private ISeries[] ResolveDistinctKeyColumns(string[] columnNames)
