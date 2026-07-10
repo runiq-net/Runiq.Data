@@ -251,7 +251,7 @@ public sealed class DataFrame
     {
         var column = GetColumn(columnName);
         ValidateAggregationColumnHasRows(column);
-        return SumColumn(column);
+        return SumColumn(column, null);
     }
 
     /// <summary>
@@ -274,7 +274,7 @@ public sealed class DataFrame
     {
         var column = GetColumn(columnName);
         ValidateAggregationColumnHasRows(column);
-        return AverageColumn(column);
+        return AverageColumn(column, null);
     }
 
     /// <summary>
@@ -295,7 +295,7 @@ public sealed class DataFrame
     {
         var column = GetColumn(columnName);
         ValidateAggregationColumnHasRows(column);
-        return MinOrMaxColumn(column, findMaximum: false);
+        return MinOrMaxColumn(column, null, findMaximum: false);
     }
 
     /// <summary>
@@ -316,7 +316,50 @@ public sealed class DataFrame
     {
         var column = GetColumn(columnName);
         ValidateAggregationColumnHasRows(column);
-        return MinOrMaxColumn(column, findMaximum: true);
+        return MinOrMaxColumn(column, null, findMaximum: true);
+    }
+
+    /// <summary>
+    /// Creates a reusable grouping snapshot over one or more key columns without mutating the source DataFrame.
+    /// </summary>
+    /// <param name="columnNames">The group key column names, in the order they should appear in grouped results.</param>
+    /// <returns>
+    /// A grouped DataFrame snapshot that preserves first-seen group ordering and can run grouped
+    /// aggregations independently of later source DataFrame mutations.
+    /// </returns>
+    /// <exception cref="ArgumentException">
+    /// Thrown when no key columns are supplied, a key name is empty or whitespace, or the same
+    /// key column is supplied more than once using case-insensitive comparison.
+    /// </exception>
+    /// <exception cref="ArgumentNullException">
+    /// Thrown when <paramref name="columnNames"/> or one of its entries is <see langword="null"/>.
+    /// </exception>
+    /// <exception cref="KeyNotFoundException">Thrown when a requested key column does not exist.</exception>
+    public GroupedDataFrame GroupBy(params string[] columnNames)
+    {
+        ArgumentNullException.ThrowIfNull(columnNames);
+
+        if (columnNames.Length == 0)
+        {
+            throw new ArgumentException("At least one group key column must be supplied.", nameof(columnNames));
+        }
+
+        var selectedNames = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        var resolvedNames = new string[columnNames.Length];
+        for (var index = 0; index < columnNames.Length; index++)
+        {
+            var columnName = columnNames[index];
+            ArgumentException.ThrowIfNullOrWhiteSpace(columnName);
+
+            if (!selectedNames.Add(columnName))
+            {
+                throw new ArgumentException($"Column '{columnName}' was selected as a group key more than once.", nameof(columnNames));
+            }
+
+            resolvedNames[index] = GetColumn(columnName).Name;
+        }
+
+        return new GroupedDataFrame(Copy(), resolvedNames);
     }
 
     /// <summary>
@@ -977,6 +1020,43 @@ public sealed class DataFrame
         return Series<T>.Create(name, values);
     }
 
+    internal static ISeries CreateSeriesFromValues(string name, Type dataType, IEnumerable<object?> values)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(name);
+        ArgumentNullException.ThrowIfNull(dataType);
+        ArgumentNullException.ThrowIfNull(values);
+
+        var snapshot = values.ToArray();
+        var array = Array.CreateInstance(dataType, snapshot.Length);
+        var index = 0;
+        foreach (var value in snapshot)
+        {
+            array.SetValue(value, index);
+            index++;
+        }
+
+        var genericCreateMethod = CreateSeriesMethod.MakeGenericMethod(dataType);
+        return (ISeries)genericCreateMethod.Invoke(null, [name, array])!;
+    }
+
+    internal static DataFrame CreateFromSeries(IReadOnlyList<ISeries> sourceColumns)
+    {
+        ArgumentNullException.ThrowIfNull(sourceColumns);
+
+        if (sourceColumns.Count == 0)
+        {
+            throw new ArgumentException("A DataFrame requires at least one column.", nameof(sourceColumns));
+        }
+
+        var copiedColumns = sourceColumns
+            .Select(CloneSeries)
+            .ToArray();
+        ValidateRowTotals(copiedColumns);
+
+        var schema = DataFrameSchema.Create(CreateSchemaColumns(copiedColumns));
+        return new DataFrame(schema, Array.AsReadOnly(copiedColumns));
+    }
+
     private static IReadOnlyDictionary<string, ISeries> CreateColumnLookup(IEnumerable<ISeries> columns)
     {
         return columns.ToDictionary(static column => column.Name, StringComparer.OrdinalIgnoreCase);
@@ -1076,17 +1156,18 @@ public sealed class DataFrame
         }
     }
 
-    private static object SumColumn(ISeries column)
+    internal static object SumColumn(ISeries column, IReadOnlyList<int>? rowIndexes)
     {
         var numericType = GetNumericAggregationType(column);
+        var rowCount = GetAggregationRowCount(column, rowIndexes);
 
         if (numericType == typeof(byte) || numericType == typeof(sbyte) || numericType == typeof(short) ||
             numericType == typeof(ushort) || numericType == typeof(int))
         {
             var sum = 0;
-            for (var index = 0; index < column.Count; index++)
+            for (var index = 0; index < rowCount; index++)
             {
-                sum = checked(sum + GetInt32AggregationValue(column, numericType, index));
+                sum = checked(sum + GetInt32AggregationValue(column, numericType, GetAggregationRowIndex(rowIndexes, index)));
             }
 
             return sum;
@@ -1095,9 +1176,9 @@ public sealed class DataFrame
         if (numericType == typeof(uint))
         {
             var sum = 0u;
-            for (var index = 0; index < column.Count; index++)
+            for (var index = 0; index < rowCount; index++)
             {
-                sum = checked(sum + GetAggregationValue<uint>(column, index));
+                sum = checked(sum + GetAggregationValue<uint>(column, GetAggregationRowIndex(rowIndexes, index)));
             }
 
             return sum;
@@ -1106,9 +1187,9 @@ public sealed class DataFrame
         if (numericType == typeof(long))
         {
             var sum = 0L;
-            for (var index = 0; index < column.Count; index++)
+            for (var index = 0; index < rowCount; index++)
             {
-                sum = checked(sum + GetAggregationValue<long>(column, index));
+                sum = checked(sum + GetAggregationValue<long>(column, GetAggregationRowIndex(rowIndexes, index)));
             }
 
             return sum;
@@ -1117,9 +1198,9 @@ public sealed class DataFrame
         if (numericType == typeof(ulong))
         {
             var sum = 0UL;
-            for (var index = 0; index < column.Count; index++)
+            for (var index = 0; index < rowCount; index++)
             {
-                sum = checked(sum + GetAggregationValue<ulong>(column, index));
+                sum = checked(sum + GetAggregationValue<ulong>(column, GetAggregationRowIndex(rowIndexes, index)));
             }
 
             return sum;
@@ -1128,9 +1209,9 @@ public sealed class DataFrame
         if (numericType == typeof(float))
         {
             var sum = 0f;
-            for (var index = 0; index < column.Count; index++)
+            for (var index = 0; index < rowCount; index++)
             {
-                sum += GetAggregationValue<float>(column, index);
+                sum += GetAggregationValue<float>(column, GetAggregationRowIndex(rowIndexes, index));
             }
 
             return sum;
@@ -1139,9 +1220,9 @@ public sealed class DataFrame
         if (numericType == typeof(double))
         {
             var sum = 0d;
-            for (var index = 0; index < column.Count; index++)
+            for (var index = 0; index < rowCount; index++)
             {
-                sum += GetAggregationValue<double>(column, index);
+                sum += GetAggregationValue<double>(column, GetAggregationRowIndex(rowIndexes, index));
             }
 
             return sum;
@@ -1150,9 +1231,9 @@ public sealed class DataFrame
         if (numericType == typeof(decimal))
         {
             var sum = 0m;
-            for (var index = 0; index < column.Count; index++)
+            for (var index = 0; index < rowCount; index++)
             {
-                sum = checked(sum + GetAggregationValue<decimal>(column, index));
+                sum = checked(sum + GetAggregationValue<decimal>(column, GetAggregationRowIndex(rowIndexes, index)));
             }
 
             return sum;
@@ -1161,92 +1242,93 @@ public sealed class DataFrame
         throw new ArgumentException($"Column '{column.Name}' has data type '{column.DataType}' and is not numeric.");
     }
 
-    private static double AverageColumn(ISeries column)
+    internal static double AverageColumn(ISeries column, IReadOnlyList<int>? rowIndexes)
     {
         var numericType = GetNumericAggregationType(column);
+        var rowCount = GetAggregationRowCount(column, rowIndexes);
 
         if (numericType == typeof(byte) || numericType == typeof(sbyte) || numericType == typeof(short) ||
             numericType == typeof(ushort) || numericType == typeof(int))
         {
             var sum = 0;
-            for (var index = 0; index < column.Count; index++)
+            for (var index = 0; index < rowCount; index++)
             {
-                sum = checked(sum + GetInt32AggregationValue(column, numericType, index));
+                sum = checked(sum + GetInt32AggregationValue(column, numericType, GetAggregationRowIndex(rowIndexes, index)));
             }
 
-            return (double)sum / column.Count;
+            return (double)sum / rowCount;
         }
 
         if (numericType == typeof(uint))
         {
             var sum = 0u;
-            for (var index = 0; index < column.Count; index++)
+            for (var index = 0; index < rowCount; index++)
             {
-                sum = checked(sum + GetAggregationValue<uint>(column, index));
+                sum = checked(sum + GetAggregationValue<uint>(column, GetAggregationRowIndex(rowIndexes, index)));
             }
 
-            return (double)sum / column.Count;
+            return (double)sum / rowCount;
         }
 
         if (numericType == typeof(long))
         {
             var sum = 0L;
-            for (var index = 0; index < column.Count; index++)
+            for (var index = 0; index < rowCount; index++)
             {
-                sum = checked(sum + GetAggregationValue<long>(column, index));
+                sum = checked(sum + GetAggregationValue<long>(column, GetAggregationRowIndex(rowIndexes, index)));
             }
 
-            return (double)sum / column.Count;
+            return (double)sum / rowCount;
         }
 
         if (numericType == typeof(ulong))
         {
             var sum = 0UL;
-            for (var index = 0; index < column.Count; index++)
+            for (var index = 0; index < rowCount; index++)
             {
-                sum = checked(sum + GetAggregationValue<ulong>(column, index));
+                sum = checked(sum + GetAggregationValue<ulong>(column, GetAggregationRowIndex(rowIndexes, index)));
             }
 
-            return (double)sum / column.Count;
+            return (double)sum / rowCount;
         }
 
         if (numericType == typeof(float))
         {
             var sum = 0f;
-            for (var index = 0; index < column.Count; index++)
+            for (var index = 0; index < rowCount; index++)
             {
-                sum += GetAggregationValue<float>(column, index);
+                sum += GetAggregationValue<float>(column, GetAggregationRowIndex(rowIndexes, index));
             }
 
-            return sum / column.Count;
+            return sum / rowCount;
         }
 
         if (numericType == typeof(double))
         {
             var sum = 0d;
-            for (var index = 0; index < column.Count; index++)
+            for (var index = 0; index < rowCount; index++)
             {
-                sum += GetAggregationValue<double>(column, index);
+                sum += GetAggregationValue<double>(column, GetAggregationRowIndex(rowIndexes, index));
             }
 
-            return sum / column.Count;
+            return sum / rowCount;
         }
 
         if (numericType == typeof(decimal))
         {
             var sum = 0m;
-            for (var index = 0; index < column.Count; index++)
+            for (var index = 0; index < rowCount; index++)
             {
-                sum = checked(sum + GetAggregationValue<decimal>(column, index));
+                sum = checked(sum + GetAggregationValue<decimal>(column, GetAggregationRowIndex(rowIndexes, index)));
             }
 
-            return (double)(sum / column.Count);
+            return (double)(sum / rowCount);
         }
 
         throw new ArgumentException($"Column '{column.Name}' has data type '{column.DataType}' and is not numeric.");
     }
 
-    private static object? MinOrMaxColumn(ISeries column, bool findMaximum)
+    internal static object? MinOrMaxColumn(ISeries column, IReadOnlyList<int>? rowIndexes, bool findMaximum)
     {
         var expectedType = Nullable.GetUnderlyingType(column.DataType) ?? column.DataType;
         if (!typeof(IComparable).IsAssignableFrom(expectedType))
@@ -1255,16 +1337,17 @@ public sealed class DataFrame
                 $"Column '{column.Name}' has data type '{column.DataType}' and cannot be compared safely.");
         }
 
-        var result = GetNonNullAggregationValue(column, 0);
+        var rowCount = GetAggregationRowCount(column, rowIndexes);
+        var result = GetNonNullAggregationValue(column, GetAggregationRowIndex(rowIndexes, 0));
         if (!expectedType.IsInstanceOfType(result))
         {
             throw CreateIncompatibleAggregationValueException(column, result);
         }
 
         var resultComparable = (IComparable)result;
-        for (var index = 1; index < column.Count; index++)
+        for (var index = 1; index < rowCount; index++)
         {
-            var candidate = GetNonNullAggregationValue(column, index);
+            var candidate = GetNonNullAggregationValue(column, GetAggregationRowIndex(rowIndexes, index));
             if (!expectedType.IsInstanceOfType(candidate))
             {
                 throw CreateIncompatibleAggregationValueException(column, candidate);
@@ -1290,7 +1373,19 @@ public sealed class DataFrame
         return result;
     }
 
-    private static Type GetNumericAggregationType(ISeries column)
+    internal static Type GetSumResultType(ISeries column)
+    {
+        var numericType = GetNumericAggregationType(column);
+        if (numericType == typeof(byte) || numericType == typeof(sbyte) || numericType == typeof(short) ||
+            numericType == typeof(ushort) || numericType == typeof(int))
+        {
+            return typeof(int);
+        }
+
+        return numericType;
+    }
+
+    internal static Type GetNumericAggregationType(ISeries column)
     {
         var dataType = Nullable.GetUnderlyingType(column.DataType) ?? column.DataType;
         if (dataType == typeof(byte) || dataType == typeof(sbyte) || dataType == typeof(short) ||
@@ -1302,6 +1397,22 @@ public sealed class DataFrame
         }
 
         throw new ArgumentException($"Column '{column.Name}' has data type '{column.DataType}' and is not numeric.");
+    }
+
+    private static int GetAggregationRowCount(ISeries column, IReadOnlyList<int>? rowIndexes)
+    {
+        var rowCount = rowIndexes?.Count ?? column.Count;
+        if (rowCount == 0)
+        {
+            throw new ArgumentException($"Column '{column.Name}' contains no values to aggregate.");
+        }
+
+        return rowCount;
+    }
+
+    private static int GetAggregationRowIndex(IReadOnlyList<int>? rowIndexes, int index)
+    {
+        return rowIndexes is null ? index : rowIndexes[index];
     }
 
     private static T GetAggregationValue<T>(ISeries column, int index)
