@@ -87,6 +87,56 @@ public sealed class RowOperations
     }
 
     /// <summary>
+    /// Reorders the current DataFrame rows in ascending order by one existing column.
+    /// </summary>
+    /// <param name="columnName">The column whose values determine the new row order.</param>
+    /// <remarks>
+    /// This operation mutates the owning DataFrame while preserving row count, column count,
+    /// schema, column order, and complete row values across columns. Validation fails fast when
+    /// <paramref name="columnName"/> is <see langword="null"/>, empty, whitespace, missing, or
+    /// when the target column contains null or non-comparable values.
+    /// </remarks>
+    /// <exception cref="ArgumentException">
+    /// Thrown when <paramref name="columnName"/> is empty or whitespace, or when the target
+    /// column cannot be compared safely.
+    /// </exception>
+    /// <exception cref="ArgumentNullException">
+    /// Thrown when <paramref name="columnName"/> is <see langword="null"/>.
+    /// </exception>
+    /// <exception cref="KeyNotFoundException">
+    /// Thrown when <paramref name="columnName"/> does not match an existing column.
+    /// </exception>
+    public void SortBy(string columnName)
+    {
+        dataFrame.SortRowsCore(columnName, descending: false);
+    }
+
+    /// <summary>
+    /// Reorders the current DataFrame rows in descending order by one existing column.
+    /// </summary>
+    /// <param name="columnName">The column whose values determine the new row order.</param>
+    /// <remarks>
+    /// This operation mutates the owning DataFrame while preserving row count, column count,
+    /// schema, column order, and complete row values across columns. Validation fails fast when
+    /// <paramref name="columnName"/> is <see langword="null"/>, empty, whitespace, missing, or
+    /// when the target column contains null or non-comparable values.
+    /// </remarks>
+    /// <exception cref="ArgumentException">
+    /// Thrown when <paramref name="columnName"/> is empty or whitespace, or when the target
+    /// column cannot be compared safely.
+    /// </exception>
+    /// <exception cref="ArgumentNullException">
+    /// Thrown when <paramref name="columnName"/> is <see langword="null"/>.
+    /// </exception>
+    /// <exception cref="KeyNotFoundException">
+    /// Thrown when <paramref name="columnName"/> does not match an existing column.
+    /// </exception>
+    public void SortByDescending(string columnName)
+    {
+        dataFrame.SortRowsCore(columnName, descending: true);
+    }
+
+    /// <summary>
     /// Returns the current number of rows without mutating the owning DataFrame.
     /// </summary>
     /// <remarks>

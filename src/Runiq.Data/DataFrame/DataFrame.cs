@@ -532,6 +532,29 @@ public sealed class DataFrame
         columnsByName = CreateColumnLookup(updatedColumns);
     }
 
+    internal void SortRowsCore(string columnName, bool descending)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(columnName);
+
+        var sortColumn = GetColumn(columnName);
+        ValidateSortableColumn(sortColumn);
+
+        var sortedIndexes = Enumerable.Range(0, rowCount).ToArray();
+        Array.Sort(sortedIndexes, (leftIndex, rightIndex) =>
+        {
+            var comparison = CompareSortValues(sortColumn, leftIndex, rightIndex);
+            return descending ? -comparison : comparison;
+        });
+
+        var sortedColumns = columns
+            .Select(column => CreateReorderedSeries(column, sortedIndexes))
+            .ToArray();
+
+        columns = Array.AsReadOnly(sortedColumns);
+        rowCount = sortedColumns.Length == 0 ? 0 : sortedColumns[0].Count;
+        columnsByName = CreateColumnLookup(sortedColumns);
+    }
+
     /// <summary>
     /// Removes a column from the current DataFrame instance.
     /// </summary>
@@ -940,6 +963,60 @@ public sealed class DataFrame
 
         var genericCreateMethod = CreateSeriesMethod.MakeGenericMethod(column.DataType);
         return (ISeries)genericCreateMethod.Invoke(null, [column.Name, values])!;
+    }
+
+    private static ISeries CreateReorderedSeries(ISeries column, IReadOnlyList<int> rowIndexes)
+    {
+        var values = Array.CreateInstance(column.DataType, rowIndexes.Count);
+        for (var index = 0; index < rowIndexes.Count; index++)
+        {
+            values.SetValue(column.GetValue(rowIndexes[index]), index);
+        }
+
+        var genericCreateMethod = CreateSeriesMethod.MakeGenericMethod(column.DataType);
+        return (ISeries)genericCreateMethod.Invoke(null, [column.Name, values])!;
+    }
+
+    private static void ValidateSortableColumn(ISeries column)
+    {
+        var comparableType = Nullable.GetUnderlyingType(column.DataType) ?? column.DataType;
+        if (!typeof(IComparable).IsAssignableFrom(comparableType))
+        {
+            throw new ArgumentException(
+                $"Column '{column.Name}' has data type '{column.DataType}' and cannot be compared safely for sorting.");
+        }
+
+        for (var index = 0; index < column.Count; index++)
+        {
+            if (column.GetValue(index) is null)
+            {
+                throw new ArgumentException(
+                    $"Column '{column.Name}' contains null values, which are not supported for sorting.");
+            }
+        }
+    }
+
+    private static int CompareSortValues(ISeries column, int leftIndex, int rightIndex)
+    {
+        var leftValue = column.GetValue(leftIndex);
+        var rightValue = column.GetValue(rightIndex);
+
+        if (leftValue is not IComparable leftComparable)
+        {
+            throw new ArgumentException(
+                $"Column '{column.Name}' contains values that cannot be compared safely for sorting.");
+        }
+
+        try
+        {
+            return leftComparable.CompareTo(rightValue);
+        }
+        catch (ArgumentException exception)
+        {
+            throw new ArgumentException(
+                $"Column '{column.Name}' contains values that cannot be compared safely for sorting.",
+                exception);
+        }
     }
 
     private IReadOnlyDictionary<string, object?> CreateValidatedRowValues(object row)
