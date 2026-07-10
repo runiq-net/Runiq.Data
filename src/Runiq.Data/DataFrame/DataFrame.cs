@@ -352,6 +352,60 @@ public sealed class DataFrame
     }
 
     /// <summary>
+    /// Returns a new DataFrame with duplicate rows removed while preserving the source schema.
+    /// </summary>
+    /// <param name="columnNames">
+    /// Optional column names to use as the duplicate key. When no columns are supplied, all
+    /// columns are used together as the key.
+    /// </param>
+    /// <returns>
+    /// A new DataFrame containing the first row seen for each duplicate key, with the same
+    /// schema, column order, and stable row order as the source DataFrame. The source DataFrame
+    /// is not modified.
+    /// </returns>
+    /// <remarks>
+    /// When one or more column names are supplied, only those columns determine duplicate keys,
+    /// but every source column is copied into the result. Value comparison uses the current
+    /// runtime equality behavior for the stored cell values.
+    /// </remarks>
+    /// <exception cref="ArgumentException">
+    /// Thrown when a column name is empty or whitespace, or when a column name is supplied more
+    /// than once using case-insensitive comparison.
+    /// </exception>
+    /// <exception cref="ArgumentNullException">
+    /// Thrown when <paramref name="columnNames"/> or one of its entries is <see langword="null"/>.
+    /// </exception>
+    /// <exception cref="KeyNotFoundException">
+    /// Thrown when a requested key column does not exist.
+    /// </exception>
+    public DataFrame Distinct(params string[] columnNames)
+    {
+        var keyColumns = ResolveDistinctKeyColumns(columnNames);
+        var seenKeys = new HashSet<object?[]>(RowKeyComparer.Instance);
+        var distinctRowIndexes = new List<int>();
+
+        for (var rowIndex = 0; rowIndex < rowCount; rowIndex++)
+        {
+            var key = new object?[keyColumns.Length];
+            for (var columnIndex = 0; columnIndex < keyColumns.Length; columnIndex++)
+            {
+                key[columnIndex] = keyColumns[columnIndex].GetValue(rowIndex);
+            }
+
+            if (seenKeys.Add(key))
+            {
+                distinctRowIndexes.Add(rowIndex);
+            }
+        }
+
+        var distinctColumns = columns
+            .Select(column => CreateFilteredSeries(column, distinctRowIndexes))
+            .ToArray();
+
+        return new DataFrame(schema, Array.AsReadOnly(distinctColumns));
+    }
+
+    /// <summary>
     /// Returns a new DataFrame containing the first specified number of rows while preserving the current schema.
     /// </summary>
     /// <param name="count">The maximum number of rows to include.</param>
@@ -920,6 +974,34 @@ public sealed class DataFrame
         return (ISeries)genericCreateMethod.Invoke(null, [column.Name, values])!;
     }
 
+    private ISeries[] ResolveDistinctKeyColumns(string[] columnNames)
+    {
+        ArgumentNullException.ThrowIfNull(columnNames);
+
+        if (columnNames.Length == 0)
+        {
+            return columns.ToArray();
+        }
+
+        var selectedNames = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        var keyColumns = new ISeries[columnNames.Length];
+
+        for (var index = 0; index < columnNames.Length; index++)
+        {
+            var columnName = columnNames[index];
+            ArgumentException.ThrowIfNullOrWhiteSpace(columnName);
+
+            if (!selectedNames.Add(columnName))
+            {
+                throw new ArgumentException($"Column '{columnName}' was selected more than once.", nameof(columnNames));
+            }
+
+            keyColumns[index] = GetColumn(columnName);
+        }
+
+        return keyColumns;
+    }
+
     private static ISeries CreateAppendedSeries(ISeries column, object? appendedValue)
     {
         var values = Array.CreateInstance(column.DataType, column.Count + 1);
@@ -1126,6 +1208,49 @@ public sealed class DataFrame
                 throw new ArgumentException(
                     $"Column '{column.Name}' contains {column.Count} values, but the DataFrame expects {expectedRowTotal} values.");
             }
+        }
+    }
+
+    private sealed class RowKeyComparer : IEqualityComparer<object?[]>
+    {
+        internal static readonly RowKeyComparer Instance = new();
+
+        private RowKeyComparer()
+        {
+        }
+
+        public bool Equals(object?[]? left, object?[]? right)
+        {
+            if (ReferenceEquals(left, right))
+            {
+                return true;
+            }
+
+            if (left is null || right is null || left.Length != right.Length)
+            {
+                return false;
+            }
+
+            for (var index = 0; index < left.Length; index++)
+            {
+                if (!EqualityComparer<object?>.Default.Equals(left[index], right[index]))
+                {
+                    return false;
+                }
+            }
+
+            return true;
+        }
+
+        public int GetHashCode(object?[] key)
+        {
+            var hash = new HashCode();
+            foreach (var value in key)
+            {
+                hash.Add(value);
+            }
+
+            return hash.ToHashCode();
         }
     }
 }

@@ -228,6 +228,107 @@ public sealed class RowSortingTests
     }
 
     /// <summary>
+    /// Verifies that an invalid sort operation leaves the DataFrame unchanged.
+    /// </summary>
+    [Fact]
+    public void RowsSortBy_WithInvalidColumn_DoesNotMutateDataFrame()
+    {
+        // Verifies that failed sorting does not change rows, columns, schema, or values.
+        var df = CreatePeopleDataFrame();
+        var schema = df.Schema;
+        var rowCount = df.Rows.Count();
+        var columnCount = df.Columns.Count();
+        var names = Names(df);
+        var ages = Ages(df);
+        var salaries = Salaries(df);
+        var columnNames = ColumnNames(df);
+        var schemaNames = SchemaNames(df);
+
+        Assert.Throws<KeyNotFoundException>(() => df.Rows.SortBy("MissingColumn"));
+
+        Assert.Same(schema, df.Schema);
+        Assert.Equal(rowCount, df.Rows.Count());
+        Assert.Equal(columnCount, df.Columns.Count());
+        Assert.Equal(names, Names(df));
+        Assert.Equal(ages, Ages(df));
+        Assert.Equal(salaries, Salaries(df));
+        Assert.Equal(columnNames, ColumnNames(df));
+        Assert.Equal(schemaNames, SchemaNames(df));
+    }
+
+    /// <summary>
+    /// Verifies that Rows.SortBy rejects null values in the target column.
+    /// </summary>
+    [Fact]
+    public void RowsSortBy_WithNullValuesInSortColumn_ThrowsAndDoesNotMutateDataFrame()
+    {
+        // Verifies that null sort values fail fast without changing existing row order.
+        var df = global::Runiq.Data.DataFrame.Create(new
+        {
+            Name = new[] { "Ali", "Ayse", "Mehmet" },
+            NullableScore = new int?[] { 30, null, 41 },
+            Department = new[] { "Sales", "Ops", "Finance" }
+        });
+        var schema = df.Schema;
+        var rowCount = df.Rows.Count();
+        var columnCount = df.Columns.Count();
+        var names = Names(df);
+        var nullableScores = NullableScores(df);
+        var departments = Departments(df);
+        var columnNames = ColumnNames(df);
+        var schemaNames = SchemaNames(df);
+
+        var exception = Assert.Throws<ArgumentException>(() => df.Rows.SortBy("NullableScore"));
+
+        Assert.Contains("NullableScore", exception.Message);
+        Assert.Contains("null", exception.Message);
+        Assert.Same(schema, df.Schema);
+        Assert.Equal(rowCount, df.Rows.Count());
+        Assert.Equal(columnCount, df.Columns.Count());
+        Assert.Equal(names, Names(df));
+        Assert.Equal(nullableScores, NullableScores(df));
+        Assert.Equal(departments, Departments(df));
+        Assert.Equal(columnNames, ColumnNames(df));
+        Assert.Equal(schemaNames, SchemaNames(df));
+    }
+
+    /// <summary>
+    /// Verifies that Rows.SortBy rejects values that cannot be compared.
+    /// </summary>
+    [Fact]
+    public void RowsSortBy_WithNonComparableValuesInSortColumn_ThrowsAndDoesNotMutateDataFrame()
+    {
+        // Verifies that unsupported sort values fail fast without converting them to strings.
+        var df = global::Runiq.Data.DataFrame.Create(new
+        {
+            Name = new[] { "Ali", "Ayse", "Mehmet" },
+            UnsupportedColumn = new[] { new SortPayload(30), new SortPayload(25), new SortPayload(41) },
+            Department = new[] { "Sales", "Ops", "Finance" }
+        });
+        var schema = df.Schema;
+        var rowCount = df.Rows.Count();
+        var columnCount = df.Columns.Count();
+        var names = Names(df);
+        var payloadValues = SortPayloadValues(df);
+        var departments = Departments(df);
+        var columnNames = ColumnNames(df);
+        var schemaNames = SchemaNames(df);
+
+        var exception = Assert.Throws<ArgumentException>(() => df.Rows.SortBy("UnsupportedColumn"));
+
+        Assert.Contains("UnsupportedColumn", exception.Message);
+        Assert.Contains("cannot be compared", exception.Message);
+        Assert.Same(schema, df.Schema);
+        Assert.Equal(rowCount, df.Rows.Count());
+        Assert.Equal(columnCount, df.Columns.Count());
+        Assert.Equal(names, Names(df));
+        Assert.Equal(payloadValues, SortPayloadValues(df));
+        Assert.Equal(departments, Departments(df));
+        Assert.Equal(columnNames, ColumnNames(df));
+        Assert.Equal(schemaNames, SchemaNames(df));
+    }
+
+    /// <summary>
     /// Verifies that sorting an empty DataFrame preserves schema.
     /// </summary>
     [Fact]
@@ -301,6 +402,27 @@ public sealed class RowSortingTests
             .ToArray();
     }
 
+    private static int?[] NullableScores(global::Runiq.Data.DataFrame df)
+    {
+        return Enumerable.Range(0, df.Rows.Count())
+            .Select(index => (int?)df["NullableScore"].GetValue(index))
+            .ToArray();
+    }
+
+    private static string[] Departments(global::Runiq.Data.DataFrame df)
+    {
+        return Enumerable.Range(0, df.Rows.Count())
+            .Select(index => (string)df["Department"].GetValue(index)!)
+            .ToArray();
+    }
+
+    private static int[] SortPayloadValues(global::Runiq.Data.DataFrame df)
+    {
+        return Enumerable.Range(0, df.Rows.Count())
+            .Select(index => ((SortPayload)df["UnsupportedColumn"].GetValue(index)!).Value)
+            .ToArray();
+    }
+
     private static string[] ColumnNames(global::Runiq.Data.DataFrame df)
     {
         return df.Columns.Select(static column => column.Name).ToArray();
@@ -310,4 +432,6 @@ public sealed class RowSortingTests
     {
         return df.Schema.Columns.Select(static column => column.Name).ToArray();
     }
+
+    private sealed record SortPayload(int Value);
 }
