@@ -157,9 +157,75 @@ public sealed class GroupedDataFrame
             group => DataFrame.MinOrMaxColumn(aggregateColumn, group.RowIndexes, findMaximum: true));
     }
 
-    private ISeries ResolveAggregateColumn(string columnName)
+    /// <summary>
+    /// Runs multiple grouped aggregations in one operation and returns a new DataFrame.
+    /// </summary>
+    /// <param name="configure">
+    /// A builder callback that declares the aggregate source columns and operations to run.
+    /// </param>
+    /// <returns>
+    /// A new DataFrame containing the group key columns followed by generated aggregation result
+    /// columns in the exact order declared by the builder. The grouped snapshot and original
+    /// source DataFrame are not mutated.
+    /// </returns>
+    /// <remarks>
+    /// Use <see cref="GroupAggregationBuilder.For(string)"/> to select an aggregate source
+    /// column, then chain <see cref="ColumnAggregationBuilder.Sum"/>,
+    /// <see cref="ColumnAggregationBuilder.Average"/>, <see cref="ColumnAggregationBuilder.Min"/>,
+    /// and <see cref="ColumnAggregationBuilder.Max"/>. Empty configurations, invalid or missing
+    /// columns, duplicate generated result columns, result names that collide with group keys,
+    /// null group keys or aggregate values, unsupported aggregate types, and checked arithmetic
+    /// overflow fail the operation without returning a partial result.
+    /// </remarks>
+    /// <exception cref="ArgumentNullException">
+    /// Thrown when <paramref name="configure"/> is <see langword="null"/>.
+    /// </exception>
+    /// <exception cref="ArgumentException">
+    /// Thrown when the configuration is empty, the callback returns <see langword="null"/>, a
+    /// column name is empty or whitespace, a duplicate aggregation is declared, a generated
+    /// result column collides with a group key, the source snapshot is empty, a group key or
+    /// aggregate value is null, or an aggregate column has an unsupported type.
+    /// </exception>
+    /// <exception cref="KeyNotFoundException">Thrown when a configured aggregate column does not exist.</exception>
+    /// <exception cref="OverflowException">Thrown when checked integer or decimal addition overflows.</exception>
+    public DataFrame Aggregate(Func<GroupAggregationBuilder, GroupAggregationBuilder> configure)
+    {
+        ArgumentNullException.ThrowIfNull(configure);
+
+        var builder = new GroupAggregationBuilder(this);
+        var configuredBuilder = configure(builder);
+        if (configuredBuilder is null)
+        {
+            throw new ArgumentException("The aggregation configuration callback must return the supplied builder.", nameof(configure));
+        }
+
+        var descriptors = configuredBuilder.Build();
+        if (descriptors.Count == 0)
+        {
+            throw new ArgumentException("At least one aggregation must be configured.", nameof(configure));
+        }
+
+        var groups = BuildGroups();
+        return CreateAggregationResult(descriptors, groups);
+    }
+
+    internal ISeries ResolveAggregateColumn(string columnName)
     {
         return source.GetColumn(columnName);
+    }
+
+    internal AggregationDescriptor CreateDescriptor(string columnName, AggregationKind kind)
+    {
+        var aggregateColumn = ResolveAggregateColumn(columnName);
+        var resultColumnName = CreateResultColumnName(aggregateColumn.Name, kind.ToString());
+        ValidateResultColumnName(resultColumnName);
+
+        return new AggregationDescriptor(
+            aggregateColumn,
+            aggregateColumn.Name,
+            kind,
+            resultColumnName,
+            GetResultColumnType(aggregateColumn, kind));
     }
 
     private IReadOnlyList<GroupBucket> BuildGroups()
@@ -228,6 +294,30 @@ public sealed class GroupedDataFrame
         return DataFrame.CreateFromSeries(resultColumns);
     }
 
+    private DataFrame CreateAggregationResult(
+        IReadOnlyList<AggregationDescriptor> descriptors,
+        IReadOnlyList<GroupBucket> groups)
+    {
+        var resultColumns = new List<ISeries>(keyColumnNames.Length + descriptors.Count);
+        var keyColumns = keyColumnNames
+            .Select(source.GetColumn)
+            .ToArray();
+
+        for (var keyIndex = 0; keyIndex < keyColumns.Length; keyIndex++)
+        {
+            var values = groups.Select(group => group.Key.Values[keyIndex]);
+            resultColumns.Add(DataFrame.CreateSeriesFromValues(keyColumns[keyIndex].Name, keyColumns[keyIndex].DataType, values));
+        }
+
+        foreach (var descriptor in descriptors)
+        {
+            var aggregateValues = groups.Select(group => AggregateGroup(descriptor, group));
+            resultColumns.Add(DataFrame.CreateSeriesFromValues(descriptor.ResultColumnName, descriptor.ResultColumnType, aggregateValues));
+        }
+
+        return DataFrame.CreateFromSeries(resultColumns);
+    }
+
     private void ValidateResultColumnName(string resultColumnName)
     {
         if (keyColumnNames.Contains(resultColumnName, StringComparer.OrdinalIgnoreCase))
@@ -240,6 +330,29 @@ public sealed class GroupedDataFrame
     private static string CreateResultColumnName(string columnName, string operationName)
     {
         return $"{columnName}_{operationName}";
+    }
+
+    private static object? AggregateGroup(AggregationDescriptor descriptor, GroupBucket group)
+    {
+        return descriptor.Kind switch
+        {
+            AggregationKind.Sum => DataFrame.SumColumn(descriptor.Column, group.RowIndexes),
+            AggregationKind.Average => DataFrame.AverageColumn(descriptor.Column, group.RowIndexes),
+            AggregationKind.Min => DataFrame.MinOrMaxColumn(descriptor.Column, group.RowIndexes, findMaximum: false),
+            AggregationKind.Max => DataFrame.MinOrMaxColumn(descriptor.Column, group.RowIndexes, findMaximum: true),
+            _ => throw new ArgumentOutOfRangeException(nameof(descriptor), descriptor.Kind, "Unsupported aggregation kind.")
+        };
+    }
+
+    private static Type GetResultColumnType(ISeries aggregateColumn, AggregationKind kind)
+    {
+        return kind switch
+        {
+            AggregationKind.Sum => DataFrame.GetSumResultType(aggregateColumn),
+            AggregationKind.Average => typeof(double),
+            AggregationKind.Min or AggregationKind.Max => aggregateColumn.DataType,
+            _ => throw new ArgumentOutOfRangeException(nameof(kind), kind, "Unsupported aggregation kind.")
+        };
     }
 
     private sealed class GroupBucket
