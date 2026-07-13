@@ -2,7 +2,7 @@
 
 ## Purpose
 
-This sample demonstrates reading Excel worksheets into DataFrames with default worksheet selection, explicit sheet selection, and headerless worksheet options.
+This sample demonstrates reading Excel worksheets into DataFrames and writing DataFrames back to `.xlsx` workbooks. It covers default worksheet reading, worksheet selection, header modes, native Excel cell types, headerless export, and Excel round-trip behavior.
 
 ## Scenario
 
@@ -10,23 +10,32 @@ The sample uses an Excel workbook with `Employees`, `Departments`, and `Employee
 
 ## Execution Flow
 
-1. Reads the default first worksheet with `DataFrame.ReadExcel`.
+1. Reads the default worksheet from the source workbook.
 2. Prints employee rows and the inferred schema.
-3. Reads the `Departments` worksheet by name with `ExcelReadOptions.SheetName`.
+3. Reads the `Departments` worksheet by name.
 4. Prints the department rows.
-5. Reads worksheet index `1` with `ExcelReadOptions.SheetIndex`.
+5. Reads worksheet index `1`.
 6. Prints the same department worksheet selected by index.
-7. Reads the `EmployeesWithoutHeader` worksheet with `ExcelHeaderMode.Absent` and explicit `Names`.
+7. Reads a headerless worksheet using explicit column names.
 8. Prints the headerless employee rows.
+9. Writes the employee DataFrame to a temporary `.xlsx` workbook.
+10. Uses a custom worksheet name, `EmployeesExport`.
+11. Reads the generated workbook back.
+12. Writes a second workbook without headers.
+13. Reads the headerless workbook using `ExcelHeaderMode.Absent` and `Names`.
+14. Prints the round-trip results.
+15. Deletes temporary workbook files.
 
 ## Expected Output
 
-The console output shows first worksheet employee data, selected department worksheet data, headerless data with explicit column names, DateTime values, nullable age cells, numeric and Boolean values, and Turkish characters.
+The console output shows native string, numeric, Boolean and DateTime values, nullable cells, Turkish characters, custom worksheet selection, headerless reload, and the same values after Excel round-trip.
 
 ## Key APIs
 
 - `DataFrame.ReadExcel`
+- `DataFrame.WriteExcel`
 - `ExcelReadOptions`
+- `ExcelWriteOptions`
 - `ExcelHeaderMode`
 
 ## Run

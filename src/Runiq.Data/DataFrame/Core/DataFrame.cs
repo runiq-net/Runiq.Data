@@ -442,6 +442,90 @@ public sealed class DataFrame
     }
 
     /// <summary>
+    /// Writes the current DataFrame to an Excel <c>.xlsx</c> workbook using default write options.
+    /// </summary>
+    /// <param name="path">The local <c>.xlsx</c> file path to create or replace.</param>
+    /// <remarks>
+    /// This overload uses <see cref="ExcelWriteOptions"/> defaults: one worksheet named
+    /// <c>Sheet1</c> and a header row. Existing files are overwritten rather than appended.
+    /// String values, including formula-like strings such as <c>=1+1</c>, are written as text;
+    /// null cells are written as blank cells; empty strings remain text cells; Booleans,
+    /// supported numeric values, and <see cref="DateTime"/> values are written as native Excel
+    /// cells. The target file is replaced only after the workbook has been serialized to a
+    /// temporary <c>.xlsx</c> file in the target directory. Excel does not persist
+    /// <see cref="DateTimeKind"/> metadata and cannot safely store all CLR numeric values.
+    /// </remarks>
+    /// <exception cref="ArgumentException">
+    /// Thrown when <paramref name="path"/> is empty or whitespace, the DataFrame cannot produce
+    /// an Excel worksheet shape, or a cell contains a value that cannot be written safely.
+    /// </exception>
+    /// <exception cref="ArgumentNullException">
+    /// Thrown when <paramref name="path"/> is <see langword="null"/>.
+    /// </exception>
+    /// <exception cref="NotSupportedException">
+    /// Thrown when <paramref name="path"/> does not have a <c>.xlsx</c> extension or when the
+    /// underlying file system reports an unsupported path format.
+    /// </exception>
+    /// <exception cref="DirectoryNotFoundException">
+    /// Thrown by the underlying file system when the target directory does not exist.
+    /// </exception>
+    /// <exception cref="IOException">
+    /// Thrown by the underlying file system when the file cannot be written, replaced, or moved.
+    /// </exception>
+    /// <exception cref="UnauthorizedAccessException">
+    /// Thrown by the underlying file system when access to the path is denied.
+    /// </exception>
+    /// <exception cref="PathTooLongException">
+    /// Thrown by the underlying file system when the path exceeds platform limits.
+    /// </exception>
+    public void WriteExcel(string path)
+    {
+        WriteExcel(path, new ExcelWriteOptions());
+    }
+
+    /// <summary>
+    /// Writes the current DataFrame to an Excel <c>.xlsx</c> workbook using explicit write options.
+    /// </summary>
+    /// <param name="path">The local <c>.xlsx</c> file path to create or replace.</param>
+    /// <param name="options">The Excel options controlling worksheet name and header output.</param>
+    /// <remarks>
+    /// A new workbook with a single worksheet is created for every call. Existing workbook
+    /// content is not preserved, and rows or worksheets are not appended. The worksheet name is
+    /// used exactly as supplied and is validated before ClosedXML creates the sheet. Unsupported
+    /// runtime values such as custom objects, non-finite floating-point values, unsafe integral
+    /// values, unsafe decimals, and dates outside Excel's date range fail before the target file
+    /// is replaced.
+    /// </remarks>
+    /// <exception cref="ArgumentException">
+    /// Thrown when <paramref name="path"/> is empty or whitespace, options contain an invalid
+    /// worksheet name, the DataFrame cannot produce an Excel worksheet shape, or a cell contains
+    /// a value that cannot be written safely.
+    /// </exception>
+    /// <exception cref="ArgumentNullException">
+    /// Thrown when <paramref name="path"/> or <paramref name="options"/> is <see langword="null"/>.
+    /// </exception>
+    /// <exception cref="NotSupportedException">
+    /// Thrown when <paramref name="path"/> does not have a <c>.xlsx</c> extension or when the
+    /// underlying file system reports an unsupported path format.
+    /// </exception>
+    /// <exception cref="DirectoryNotFoundException">
+    /// Thrown by the underlying file system when the target directory does not exist.
+    /// </exception>
+    /// <exception cref="IOException">
+    /// Thrown by the underlying file system when the file cannot be written, replaced, or moved.
+    /// </exception>
+    /// <exception cref="UnauthorizedAccessException">
+    /// Thrown by the underlying file system when access to the path is denied.
+    /// </exception>
+    /// <exception cref="PathTooLongException">
+    /// Thrown by the underlying file system when the path exceeds platform limits.
+    /// </exception>
+    public void WriteExcel(string path, ExcelWriteOptions options)
+    {
+        ExcelDataFrameWriter.Write(this, path, options);
+    }
+
+    /// <summary>
     /// Creates an independent DataFrame branch with the same schema and values as the current instance.
     /// </summary>
     /// <returns>

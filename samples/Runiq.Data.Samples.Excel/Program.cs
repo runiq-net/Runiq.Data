@@ -39,6 +39,68 @@ var employeesWithoutHeader = DataFrame.ReadExcel(
     });
 Print(employeesWithoutHeader);
 
+var outputPath = Path.Combine(
+    Path.GetTempPath(),
+    $"runiq-data-{Guid.NewGuid():N}.xlsx");
+
+var headerlessOutputPath = Path.Combine(
+    Path.GetTempPath(),
+    $"runiq-data-{Guid.NewGuid():N}.xlsx");
+
+try
+{
+    Console.WriteLine();
+    Console.WriteLine("=== Excel Write Round-trip: Header On, Custom Worksheet ===");
+    employees.WriteExcel(
+        outputPath,
+        new ExcelWriteOptions
+        {
+            SheetName = "EmployeesExport",
+            IncludeHeader = true
+        });
+
+    var reloaded = DataFrame.ReadExcel(
+        outputPath,
+        new ExcelReadOptions
+        {
+            SheetName = "EmployeesExport"
+        });
+    Print(reloaded);
+
+    Console.WriteLine();
+    Console.WriteLine("=== Excel Write Round-trip: Header Off ===");
+    employees.WriteExcel(
+        headerlessOutputPath,
+        new ExcelWriteOptions
+        {
+            SheetName = "Employees",
+            IncludeHeader = false
+        });
+
+    var headerlessReloaded = DataFrame.ReadExcel(
+        headerlessOutputPath,
+        new ExcelReadOptions
+        {
+            SheetName = "Employees",
+            Header = ExcelHeaderMode.Absent,
+            Names =
+            [
+                "Name",
+                "Department",
+                "Age",
+                "Salary",
+                "Active",
+                "StartDate"
+            ]
+        });
+    Print(headerlessReloaded);
+}
+finally
+{
+    DeleteTemporaryWorkbook(outputPath);
+    DeleteTemporaryWorkbook(headerlessOutputPath);
+}
+
 static void Print(DataFrame dataFrame)
 {
     var columnNames = dataFrame.Columns.Select(static column => column.Name).ToArray();
@@ -57,5 +119,20 @@ static void PrintSchema(DataFrame dataFrame)
     foreach (var column in dataFrame.Schema.Columns)
     {
         Console.WriteLine($"{column.Name}: {column.DataType.Name}, Nullable: {column.IsNullable}");
+    }
+}
+
+static void DeleteTemporaryWorkbook(string path)
+{
+    try
+    {
+        if (File.Exists(path))
+        {
+            File.Delete(path);
+        }
+    }
+    catch
+    {
+        // Sample cleanup is best-effort so cleanup failures do not hide the demonstrated flow.
     }
 }
