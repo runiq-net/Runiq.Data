@@ -2,7 +2,7 @@ using System.Reflection;
 using Runiq.Data.Schema;
 using Runiq.Data.Series;
 
-namespace Runiq.Data.Tests.DataFrame;
+namespace Runiq.Data.Tests.DataFrame.Core;
 
 /// <summary>
 /// Verifies the behavior of the consumer-facing DataFrame object model.

@@ -1,4 +1,4 @@
-namespace Runiq.Data.Tests.DataFrame;
+namespace Runiq.Data.Tests.DataFrame.Sorting;
 
 /// <summary>
 /// Verifies mutable row sorting behavior through the Rows facade.

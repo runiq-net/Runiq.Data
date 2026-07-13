@@ -1,4 +1,4 @@
-namespace Runiq.Data.Tests.DataFrame;
+namespace Runiq.Data.Tests.DataFrame.Rows;
 
 /// <summary>
 /// Verifies direct mutable row replacement behavior on DataFrame.

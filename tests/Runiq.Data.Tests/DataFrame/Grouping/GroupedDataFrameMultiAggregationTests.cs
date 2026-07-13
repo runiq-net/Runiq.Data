@@ -1,4 +1,4 @@
-namespace Runiq.Data.Tests.DataFrame;
+namespace Runiq.Data.Tests.DataFrame.Grouping;
 
 /// <summary>
 /// Verifies grouped multi-aggregation builder behavior and result contracts.

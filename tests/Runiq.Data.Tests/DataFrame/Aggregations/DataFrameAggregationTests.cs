@@ -1,4 +1,4 @@
-namespace Runiq.Data.Tests.DataFrame;
+namespace Runiq.Data.Tests.DataFrame.Aggregations;
 
 /// <summary>
 /// Verifies DataFrame-level aggregation behavior.

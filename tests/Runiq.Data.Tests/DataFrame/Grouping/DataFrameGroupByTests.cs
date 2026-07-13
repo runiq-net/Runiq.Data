@@ -1,4 +1,4 @@
-namespace Runiq.Data.Tests.DataFrame;
+namespace Runiq.Data.Tests.DataFrame.Grouping;
 
 /// <summary>
 /// Verifies DataFrame-level GroupBy behavior and grouped aggregation results.

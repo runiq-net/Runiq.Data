@@ -1,4 +1,4 @@
-namespace Runiq.Data.Tests.DataFrame;
+namespace Runiq.Data.Tests.DataFrame.Rows;
 
 /// <summary>
 /// Verifies read-only row access behavior on DataFrame.

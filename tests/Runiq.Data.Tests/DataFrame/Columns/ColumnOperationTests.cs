@@ -1,4 +1,4 @@
-namespace Runiq.Data.Tests.DataFrame;
+namespace Runiq.Data.Tests.DataFrame.Columns;
 
 /// <summary>
 /// Verifies direct column mutation operations on DataFrame.

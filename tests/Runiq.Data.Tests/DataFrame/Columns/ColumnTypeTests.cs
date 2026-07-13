@@ -1,4 +1,4 @@
-namespace Runiq.Data.Tests.DataFrame;
+namespace Runiq.Data.Tests.DataFrame.Columns;
 
 /// <summary>
 /// Verifies developer-friendly column type checks and required column validation helpers.

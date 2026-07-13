@@ -1,4 +1,4 @@
-namespace Runiq.Data.Tests.DataFrame;
+namespace Runiq.Data.Tests.DataFrame.Distinct;
 
 /// <summary>
 /// Verifies duplicate-row projection behavior on DataFrame.

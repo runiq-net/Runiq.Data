@@ -1,4 +1,4 @@
-namespace Runiq.Data.Tests.DataFrame;
+namespace Runiq.Data.Tests.DataFrame.Core;
 
 /// <summary>
 /// Verifies leading-row limiting behavior on DataFrame.

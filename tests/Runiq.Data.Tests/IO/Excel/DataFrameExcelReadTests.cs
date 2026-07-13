@@ -1,6 +1,6 @@
 using ClosedXML.Excel;
 
-namespace Runiq.Data.Tests.DataFrame;
+namespace Runiq.Data.Tests.IO.Excel;
 
 /// <summary>
 /// Verifies Excel reading through the public DataFrame API.

@@ -1,4 +1,4 @@
-namespace Runiq.Data.Tests.DataFrame;
+namespace Runiq.Data.Tests.DataFrame.Rows;
 
 /// <summary>
 /// Verifies mutable row removal behavior through the Rows facade.

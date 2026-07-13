@@ -1,10 +1,11 @@
-namespace Runiq.Data.Tests.DataFrame;
+namespace Runiq.Data.Tests.DataFrame.Core;
 
 /// <summary>
 /// Verifies row and column count facade behavior.
 /// </summary>
 public sealed class DataFrameCountFacadeTests
 {
+    // Verifies R ow sC ou nt R et ur ns Cu rr en tR ow To ta lA nd Re fl ec ts Ro wM ut at io ns.
     [Fact]
     public void RowsCount_ReturnsCurrentRowTotalAndReflectsRowMutations()
     {
@@ -23,6 +24,7 @@ public sealed class DataFrameCountFacadeTests
         Assert.Equal(2, df.Rows.Count());
     }
 
+    // Verifies C ol um ns Co un t R et ur ns Cu rr en tC ol um nT ot al An dR ef le ct sC ol um nM ut at io ns.
     [Fact]
     public void ColumnsCount_ReturnsCurrentColumnTotalAndReflectsColumnMutations()
     {
@@ -41,6 +43,7 @@ public sealed class DataFrameCountFacadeTests
         Assert.Equal(2, df.Columns.Count());
     }
 
+    // Verifies C ou nt Me th od s D oN ot Mu ta te Da ta Fr am e.
     [Fact]
     public void CountMethods_DoNotMutateDataFrame()
     {

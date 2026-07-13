@@ -1,4 +1,4 @@
-namespace Runiq.Data.Tests.DataFrame;
+namespace Runiq.Data.Tests.DataFrame.Core;
 
 /// <summary>
 /// Verifies explicit DataFrame copy branching behavior.

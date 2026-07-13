@@ -1,4 +1,4 @@
-namespace Runiq.Data.Tests.DataFrame;
+namespace Runiq.Data.Tests.DataFrame.Filtering;
 
 /// <summary>
 /// Verifies row filtering behavior on DataFrame.

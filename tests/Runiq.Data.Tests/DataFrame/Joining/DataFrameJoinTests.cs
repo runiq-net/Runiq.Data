@@ -1,7 +1,8 @@
-namespace Runiq.Data.Tests.DataFrame;
+namespace Runiq.Data.Tests.DataFrame.Joining;
 
 public sealed class DataFrameJoinTests
 {
+    // Verifies J oi nA pi O nO ve rl oa ds R et ur nD at aF ra me An dK ee pB ui ld er Se pa ra te.
     [Fact]
     public void JoinApi_OnOverloads_ReturnDataFrameAndKeepBuilderSeparate()
     {
@@ -43,6 +44,7 @@ public sealed class DataFrameJoinTests
         Assert.DoesNotContain(builder.GetType().GetMethods().Select(static method => method.Name), static name => name == "Select");
     }
 
+    // Verifies I nn er Jo in P ro du ce sM at ch es Ca rt es ia nD up li ca te sS ta bl eO rd er in gA nd Co lu mn Or de r.
     [Fact]
     public void InnerJoin_ProducesMatchesCartesianDuplicatesStableOrderingAndColumnOrder()
     {
@@ -73,6 +75,7 @@ public sealed class DataFrameJoinTests
             Rows(result));
     }
 
+    // Verifies L ef tJ oi n K ee ps Un ma tc he dL ef tR ow sA nd Us es Nu ll Ri gh tV al ue s.
     [Fact]
     public void LeftJoin_KeepsUnmatchedLeftRowsAndUsesNullRightValues()
     {
@@ -101,6 +104,7 @@ public sealed class DataFrameJoinTests
             Rows(result));
     }
 
+    // Verifies L ef tJ oi n W it hE mp ty Ri gh t P re se rv es Sc he ma An dL ef tR ow s.
     [Fact]
     public void LeftJoin_WithEmptyRight_PreservesSchemaAndLeftRows()
     {
@@ -114,6 +118,7 @@ public sealed class DataFrameJoinTests
         Assert.Equal(new object?[][] { [1, "Ali", null, null], [2, "Ayse", null, null] }, Rows(result));
     }
 
+    // Verifies R ig ht Jo in K ee ps Un ma tc he dR ig ht Ro ws An dU se sN ul lL ef tV al ue s.
     [Fact]
     public void RightJoin_KeepsUnmatchedRightRowsAndUsesNullLeftValues()
     {
@@ -143,6 +148,7 @@ public sealed class DataFrameJoinTests
             Rows(result));
     }
 
+    // Verifies R ig ht Jo in W it hE mp ty Le ft P re se rv es Sc he ma An dR ig ht Ro ws.
     [Fact]
     public void RightJoin_WithEmptyLeft_PreservesSchemaAndRightRows()
     {
@@ -156,6 +162,7 @@ public sealed class DataFrameJoinTests
         Assert.Equal(new object?[][] { [null, null, 1, "Engineering"] }, Rows(result));
     }
 
+    // Verifies F ul lJ oi n U se sL ef tJ oi nO rd er in gT he nU nm at ch ed Ri gh tR ow s.
     [Fact]
     public void FullJoin_UsesLeftJoinOrderingThenUnmatchedRightRows()
     {
@@ -184,6 +191,7 @@ public sealed class DataFrameJoinTests
             Rows(result));
     }
 
+    // Verifies F ul lJ oi n W it hB ot hS id es Em pt y R et ur ns Jo in ed Sc he ma An dN oR ow s.
     [Fact]
     public void FullJoin_WithBothSidesEmpty_ReturnsJoinedSchemaAndNoRows()
     {
@@ -197,6 +205,7 @@ public sealed class DataFrameJoinTests
         Assert.Equal(0, result.Rows.Count());
     }
 
+    // Verifies C om po si te Ke y J oi ns On ly Wh en Al lP ar ts Ma tc hA nd Pr es er ve sD ec la ra ti on Or de r.
     [Fact]
     public void CompositeKey_JoinsOnlyWhenAllPartsMatchAndPreservesDeclarationOrder()
     {
@@ -228,6 +237,7 @@ public sealed class DataFrameJoinTests
             Rows(result));
     }
 
+    // Verifies C om po si te Ke y W it hD if fe re nt Co lu mn Na me s J oi ns By Tu pl eP ai rs.
     [Fact]
     public void CompositeKey_WithDifferentColumnNames_JoinsByTuplePairs()
     {
@@ -250,6 +260,7 @@ public sealed class DataFrameJoinTests
         Assert.Equal(new object?[][] { [1, 10, "L10", 1, 10, "R10"] }, Rows(result));
     }
 
+    // Verifies N ul lK ey s D oN ot Ma tc hA nd Ou te rJ oi ns Ke ep Ro ws As Un ma tc he d.
     [Fact]
     public void NullKeys_DoNotMatchAndOuterJoinsKeepRowsAsUnmatched()
     {
@@ -276,6 +287,7 @@ public sealed class DataFrameJoinTests
         Assert.Equal(new object?[][] { [null, "LeftNull", null], [1, "LeftOne", "RightOne"], [null, null, "RightNull"] }, Rows(full));
     }
 
+    // Verifies C om po si te Ke y W it hA ny Nu ll Pa rt D oe sN ot Ma tc h.
     [Fact]
     public void CompositeKey_WithAnyNullPart_DoesNotMatch()
     {
@@ -298,6 +310,7 @@ public sealed class DataFrameJoinTests
         Assert.Equal(new object?[][] { [1, null, "NullOrder", null], [1, 10, "Matched", "Right"] }, Rows(result));
     }
 
+    // Verifies C ol um nC on fl ic t W he nN on Ke yN am eE xi st sO nB ot hS id es F ai ls Fa st An dD oe sN ot Mu ta te So ur ce s.
     [Fact]
     public void ColumnConflict_WhenNonKeyNameExistsOnBothSides_FailsFastAndDoesNotMutateSources()
     {
@@ -316,6 +329,7 @@ public sealed class DataFrameJoinTests
         Assert.Equal(new[] { "Key", "Name" }, ColumnNames(right));
     }
 
+    // Verifies S am eN am eJ oi nK ey I sN ot AC on fl ic tA nd Ap pe ar sO nc e.
     [Fact]
     public void SameNameJoinKey_IsNotAConflictAndAppearsOnce()
     {
@@ -329,6 +343,7 @@ public sealed class DataFrameJoinTests
         Assert.Equal(new object?[][] { [1, "L", "R"] }, Rows(result));
     }
 
+    // Verifies S am eN am eJ oi nK ey F or Un ma tc he dR ig ht Ro ws I sF il le dF ro mR ig ht Ke y.
     [Fact]
     public void SameNameJoinKey_ForUnmatchedRightRows_IsFilledFromRightKey()
     {
@@ -343,6 +358,7 @@ public sealed class DataFrameJoinTests
         Assert.Equal(new object?[][] { [1, "L1", null], [2, null, "R2"] }, Rows(full));
     }
 
+    // Verifies J oi nS ch em aT yp es F ol lo wJ oi nK in dN ul la bi li ty Ru le s.
     [Fact]
     public void JoinSchemaTypes_FollowJoinKindNullabilityRules()
     {
@@ -365,6 +381,7 @@ public sealed class DataFrameJoinTests
         Assert.Equal(typeof(int?), full.RequireColumn("RightNumber").DataType);
     }
 
+    // Verifies S am eN am eJ oi nK ey Sc he ma Ty pe F ol lo ws Jo in Ki nd Nu ll ab il it yR ul es.
     [Fact]
     public void SameNameJoinKeySchemaType_FollowsJoinKindNullabilityRules()
     {
@@ -383,6 +400,7 @@ public sealed class DataFrameJoinTests
         Assert.Equal(typeof(int?), full.RequireColumn("Id").DataType);
     }
 
+    // Verifies V al id at io n I nv al id In pu ts Fa il Fa st.
     [Fact]
     public void Validation_InvalidInputsFailFast()
     {
@@ -400,6 +418,7 @@ public sealed class DataFrameJoinTests
         Assert.Throws<KeyNotFoundException>(() => left.InnerJoin(right).On(("Id", "Id"), ("Missing", "Id")));
     }
 
+    // Verifies V al id at io n W it hE mp ty Ke y D oe sN ot Mu ta te So ur ce s.
     [Fact]
     public void Validation_WithEmptyKey_DoesNotMutateSources()
     {
@@ -419,6 +438,7 @@ public sealed class DataFrameJoinTests
         Assert.Equal(rightColumns, ColumnNames(right));
     }
 
+    // Verifies K ey Co mp ar is on D oe sN ot Ma tc hI nt eg er An dS tr in gV al ue s.
     [Fact]
     public void KeyComparison_DoesNotMatchIntegerAndStringValues()
     {
@@ -431,6 +451,7 @@ public sealed class DataFrameJoinTests
         Assert.Equal(0, result.Rows.Count());
     }
 
+    // Verifies V al id at io n W it hU ns up po rt ed Ke yV al ue F ai ls Fa st.
     [Fact]
     public void Validation_WithUnsupportedKeyValue_FailsFast()
     {
@@ -444,6 +465,7 @@ public sealed class DataFrameJoinTests
         Assert.Contains("cannot be compared safely", exception.Message);
     }
 
+    // Verifies J oi nR es ul t I sS na ps ho tA nd Do es No tS ha re So ur ce Ro ws Or Co lu mn s.
     [Fact]
     public void JoinResult_IsSnapshotAndDoesNotShareSourceRowsOrColumns()
     {

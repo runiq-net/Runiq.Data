@@ -1,4 +1,4 @@
-namespace Runiq.Data.Tests.DataFrame;
+namespace Runiq.Data.Tests.DataFrame.Rows;
 
 /// <summary>
 /// Verifies direct row append behavior on DataFrame.

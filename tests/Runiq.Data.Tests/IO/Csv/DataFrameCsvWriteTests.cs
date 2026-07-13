@@ -1,7 +1,7 @@
 using System.Globalization;
 using System.Runtime.InteropServices;
 
-namespace Runiq.Data.Tests.DataFrame;
+namespace Runiq.Data.Tests.IO.Csv;
 
 /// <summary>
 /// Verifies CSV writing through the public DataFrame API.

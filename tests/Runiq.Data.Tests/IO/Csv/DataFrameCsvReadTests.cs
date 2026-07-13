@@ -1,6 +1,6 @@
 using System.Globalization;
 
-namespace Runiq.Data.Tests.DataFrame;
+namespace Runiq.Data.Tests.IO.Csv;
 
 /// <summary>
 /// Verifies CSV reading through the public DataFrame API.
