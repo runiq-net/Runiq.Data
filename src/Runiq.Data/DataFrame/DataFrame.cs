@@ -274,6 +274,95 @@ public sealed class DataFrame
     }
 
     /// <summary>
+    /// Writes the current DataFrame to a comma-delimited CSV file using default write options.
+    /// </summary>
+    /// <param name="path">The local file path to create or replace.</param>
+    /// <remarks>
+    /// This overload uses <see cref="CsvWriteOptions"/> defaults: a header row is written and
+    /// comma is used as the delimiter. Null cells are written as empty unquoted fields, empty
+    /// strings are written as quoted empty fields, strings are quoted only when CSV structure
+    /// requires it, Booleans are written as <c>true</c> or <c>false</c>, and numeric values use
+    /// invariant culture formatting. The file is encoded as UTF-8 without a byte-order mark.
+    /// The target file is replaced after content is serialized to a temporary file in the target
+    /// directory, so an existing file is preserved when serialization fails before replacement.
+    /// CSV does not store DataFrame schema metadata, so reading the file back may infer
+    /// compatible but not identical CLR column types.
+    /// </remarks>
+    /// <exception cref="ArgumentException">
+    /// Thrown when <paramref name="path"/> is empty or whitespace, the DataFrame cannot produce
+    /// a CSV record shape, or a cell contains a value that cannot be written deterministically.
+    /// </exception>
+    /// <exception cref="ArgumentNullException">
+    /// Thrown when <paramref name="path"/> is <see langword="null"/>.
+    /// </exception>
+    /// <exception cref="DirectoryNotFoundException">
+    /// Thrown by the underlying file system when the target directory does not exist.
+    /// </exception>
+    /// <exception cref="IOException">
+    /// Thrown by the underlying file system when the file cannot be written, replaced, or moved.
+    /// </exception>
+    /// <exception cref="UnauthorizedAccessException">
+    /// Thrown by the underlying file system when access to the path is denied.
+    /// </exception>
+    /// <exception cref="PathTooLongException">
+    /// Thrown by the underlying file system when the path exceeds platform limits.
+    /// </exception>
+    /// <exception cref="NotSupportedException">
+    /// Thrown by the underlying file system when the path format is not supported.
+    /// </exception>
+    public void WriteCsv(string path)
+    {
+        WriteCsv(path, new CsvWriteOptions());
+    }
+
+    /// <summary>
+    /// Writes the current DataFrame to a CSV file using explicit write options.
+    /// </summary>
+    /// <param name="path">The local file path to create or replace.</param>
+    /// <param name="options">
+    /// The CSV options controlling whether a header row is written and which single-character
+    /// delimiter separates fields.
+    /// </param>
+    /// <remarks>
+    /// Existing files are overwritten rather than appended. Header names and cell values use the
+    /// same CSV escaping rules: fields containing the delimiter, quote, carriage return, or line
+    /// feed are quoted, and quote characters inside quoted fields are doubled. Null cells are
+    /// written as empty unquoted fields, while empty strings are written as quoted empty fields
+    /// to preserve the distinction used by <see cref="ReadCsv(string, CsvReadOptions)"/>.
+    /// Booleans are written as <c>true</c> or <c>false</c>, numeric values use invariant culture,
+    /// and unsupported runtime values such as custom objects or non-finite floating-point values
+    /// fail before the target file is replaced. The writer uses UTF-8 without a byte-order mark
+    /// and writes each physical CSV record with <see cref="Environment.NewLine"/>.
+    /// </remarks>
+    /// <exception cref="ArgumentException">
+    /// Thrown when <paramref name="path"/> is empty or whitespace, options contain an invalid
+    /// delimiter, the DataFrame cannot produce a CSV record shape, or a cell contains a value
+    /// that cannot be written deterministically.
+    /// </exception>
+    /// <exception cref="ArgumentNullException">
+    /// Thrown when <paramref name="path"/> or <paramref name="options"/> is <see langword="null"/>.
+    /// </exception>
+    /// <exception cref="DirectoryNotFoundException">
+    /// Thrown by the underlying file system when the target directory does not exist.
+    /// </exception>
+    /// <exception cref="IOException">
+    /// Thrown by the underlying file system when the file cannot be written, replaced, or moved.
+    /// </exception>
+    /// <exception cref="UnauthorizedAccessException">
+    /// Thrown by the underlying file system when access to the path is denied.
+    /// </exception>
+    /// <exception cref="PathTooLongException">
+    /// Thrown by the underlying file system when the path exceeds platform limits.
+    /// </exception>
+    /// <exception cref="NotSupportedException">
+    /// Thrown by the underlying file system when the path format is not supported.
+    /// </exception>
+    public void WriteCsv(string path, CsvWriteOptions options)
+    {
+        CsvDataFrameWriter.Write(this, path, options);
+    }
+
+    /// <summary>
     /// Creates an independent DataFrame branch with the same schema and values as the current instance.
     /// </summary>
     /// <returns>

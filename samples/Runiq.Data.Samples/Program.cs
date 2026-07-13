@@ -10,6 +10,69 @@ Console.WriteLine("CSV employees with header");
 Print(csvEmployees);
 Console.WriteLine();
 
+var csvWriteDirectory = Path.Combine(Path.GetTempPath(), "Runiq.Data.Samples", Guid.NewGuid().ToString("N"));
+Directory.CreateDirectory(csvWriteDirectory);
+try
+{
+    var csvWriteInputPath = Path.Combine(csvWriteDirectory, "employees-input.csv");
+    var csvWriteOutputPath = Path.Combine(csvWriteDirectory, "employees-copy.csv");
+    var headerlessCsvWriteOutputPath = Path.Combine(csvWriteDirectory, "employees-headerless.csv");
+
+    File.WriteAllText(
+        csvWriteInputPath,
+        string.Join(Environment.NewLine,
+            "Name,Department,Age,Salary,Active",
+            "Ali,Engineering,34,125000.50,true",
+            "Ayşe,Finance,,98000.25,false",
+            "Çağrı,Sales,29,87500.00,true",
+            string.Empty));
+
+    var employeesFromCsv = DataFrame.ReadCsv(csvWriteInputPath);
+    employeesFromCsv.WriteCsv(csvWriteOutputPath);
+    var reloadedEmployees = DataFrame.ReadCsv(csvWriteOutputPath);
+
+    Console.WriteLine($"CSV write output: {csvWriteOutputPath}");
+    Console.WriteLine("CSV write round-trip with header");
+    Print(reloadedEmployees);
+    Console.WriteLine();
+
+    employeesFromCsv.WriteCsv(
+        headerlessCsvWriteOutputPath,
+        new CsvWriteOptions
+        {
+            IncludeHeader = false,
+            Delimiter = ';'
+        });
+
+    var headerlessEmployees = DataFrame.ReadCsv(
+        headerlessCsvWriteOutputPath,
+        new CsvReadOptions
+        {
+            Header = CsvHeaderMode.Absent,
+            Names = ["Name", "Department", "Age", "Salary", "Active"],
+            Delimiter = ';'
+        });
+
+    Console.WriteLine($"CSV write headerless semicolon output: {headerlessCsvWriteOutputPath}");
+    Console.WriteLine("CSV write headerless reload using Names");
+    Print(headerlessEmployees);
+    Console.WriteLine();
+}
+finally
+{
+    try
+    {
+        if (Directory.Exists(csvWriteDirectory))
+        {
+            Directory.Delete(csvWriteDirectory, recursive: true);
+        }
+    }
+    catch
+    {
+        // Sample cleanup is best-effort so the displayed CSV write behavior remains the primary result.
+    }
+}
+
 var headerlessCsvPath = Path.Combine(AppContext.BaseDirectory, "Data", "employees-without-header.csv");
 var employeesWithoutHeader = DataFrame.ReadCsv(
     headerlessCsvPath,
