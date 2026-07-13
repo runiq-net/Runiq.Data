@@ -353,6 +353,38 @@ public sealed class DataFrame
     }
 
     /// <summary>
+    /// Reads a JSON array of objects into a new DataFrame.
+    /// </summary>
+    /// <param name="path">The local JSON file path to read.</param>
+    /// <returns>
+    /// A DataFrame whose column order follows first property discovery and whose column types
+    /// preserve native JSON primitive types.
+    /// </returns>
+    /// <remarks>
+    /// The root JSON value must be a non-empty array and every array item must be an object.
+    /// Missing properties become null values. Column order follows the first object's property
+    /// order, with properties discovered in later objects appended to the end. Supported values
+    /// are null, string, Boolean, integer, decimal, and double. Nested objects and arrays are
+    /// rejected. Mixed primitive columns fail unless all non-null values can be represented by a
+    /// safe numeric promotion.
+    /// </remarks>
+    /// <exception cref="ArgumentException">
+    /// Thrown when <paramref name="path"/> is empty or whitespace, the JSON root is not a
+    /// non-empty array of objects, property names are invalid, nested values are encountered, or
+    /// a column contains incompatible primitive types.
+    /// </exception>
+    /// <exception cref="ArgumentNullException">
+    /// Thrown when <paramref name="path"/> is <see langword="null"/>.
+    /// </exception>
+    /// <exception cref="IOException">
+    /// Thrown by the underlying file system when the file cannot be read.
+    /// </exception>
+    public static DataFrame ReadJson(string path)
+    {
+        return JsonDataFrameReader.Read(path);
+    }
+
+    /// <summary>
     /// Writes the current DataFrame to a comma-delimited CSV file using default write options.
     /// </summary>
     /// <param name="path">The local file path to create or replace.</param>
