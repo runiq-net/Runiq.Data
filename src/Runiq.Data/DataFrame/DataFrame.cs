@@ -274,6 +274,85 @@ public sealed class DataFrame
     }
 
     /// <summary>
+    /// Reads an Excel <c>.xlsx</c> workbook into a new DataFrame using inferred header behavior.
+    /// </summary>
+    /// <param name="path">The local workbook path to read.</param>
+    /// <returns>
+    /// A DataFrame whose column order follows the resolved worksheet header and whose column
+    /// types are inferred from every non-blank cell in each column.
+    /// </returns>
+    /// <remarks>
+    /// This overload uses <see cref="ExcelReadOptions"/> defaults: the first worksheet is read
+    /// and <see cref="ExcelHeaderMode.Infer"/> is used. With no explicit names, the first used
+    /// worksheet row is consumed as the header. The used data range is determined from cells
+    /// containing values or formulas rather than formatting-only cells. Formula cells are read
+    /// from cached workbook results and are not recalculated.
+    /// </remarks>
+    /// <exception cref="ArgumentException">
+    /// Thrown when <paramref name="path"/> is empty or whitespace, worksheet options are invalid,
+    /// header names are invalid, or no usable columns can be produced.
+    /// </exception>
+    /// <exception cref="ArgumentNullException">
+    /// Thrown when <paramref name="path"/> is <see langword="null"/>.
+    /// </exception>
+    /// <exception cref="NotSupportedException">
+    /// Thrown when the file extension identifies a known unsupported Excel format such as
+    /// <c>.xls</c>, <c>.xlsb</c>, or <c>.ods</c>.
+    /// </exception>
+    /// <exception cref="IOException">
+    /// Thrown by the underlying file system when the workbook cannot be read.
+    /// </exception>
+    public static DataFrame ReadExcel(string path)
+    {
+        return ReadExcel(path, new ExcelReadOptions());
+    }
+
+    /// <summary>
+    /// Reads an Excel <c>.xlsx</c> workbook into a new DataFrame using explicit Excel options.
+    /// </summary>
+    /// <param name="path">The local workbook path to read.</param>
+    /// <param name="options">
+    /// The Excel options controlling worksheet selection, header mode, and optional column names.
+    /// </param>
+    /// <returns>
+    /// A DataFrame whose column order follows the resolved names and whose column types are
+    /// inferred from every non-blank cell in each column.
+    /// </returns>
+    /// <remarks>
+    /// <see cref="ExcelReadOptions.SheetIndex"/> is zero-based. Supplying both
+    /// <see cref="ExcelReadOptions.SheetName"/> and <see cref="ExcelReadOptions.SheetIndex"/>
+    /// is invalid. With <see cref="ExcelHeaderMode.Infer"/>, explicit names mean the first used
+    /// row is treated as data; otherwise the first used row is treated as a header. With
+    /// <see cref="ExcelHeaderMode.Present"/>, the first used row is always consumed as a header
+    /// and explicit names replace it. With <see cref="ExcelHeaderMode.Absent"/>, the first used
+    /// row is always data and missing names are generated as Column1, Column2, and so on.
+    /// Formula cells use cached workbook results and are not recalculated. Date/time cells are
+    /// returned as <see cref="DateTime"/> values with <see cref="DateTimeKind.Unspecified"/>.
+    /// </remarks>
+    /// <exception cref="ArgumentException">
+    /// Thrown when <paramref name="path"/> is empty or whitespace, options contain invalid
+    /// worksheet selectors or name values, headers are invalid, formula/error cells cannot be
+    /// read safely, or no usable columns can be produced.
+    /// </exception>
+    /// <exception cref="ArgumentNullException">
+    /// Thrown when <paramref name="path"/> or <paramref name="options"/> is <see langword="null"/>.
+    /// </exception>
+    /// <exception cref="ArgumentOutOfRangeException">
+    /// Thrown when <see cref="ExcelReadOptions.Header"/> contains an undefined enum value.
+    /// </exception>
+    /// <exception cref="NotSupportedException">
+    /// Thrown when the file extension identifies a known unsupported Excel format such as
+    /// <c>.xls</c>, <c>.xlsb</c>, or <c>.ods</c>.
+    /// </exception>
+    /// <exception cref="IOException">
+    /// Thrown by the underlying file system when the workbook cannot be read.
+    /// </exception>
+    public static DataFrame ReadExcel(string path, ExcelReadOptions options)
+    {
+        return ExcelDataFrameReader.Read(path, options);
+    }
+
+    /// <summary>
     /// Writes the current DataFrame to a comma-delimited CSV file using default write options.
     /// </summary>
     /// <param name="path">The local file path to create or replace.</param>
