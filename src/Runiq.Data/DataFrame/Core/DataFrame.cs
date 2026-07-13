@@ -385,6 +385,89 @@ public sealed class DataFrame
     }
 
     /// <summary>
+    /// Writes the current DataFrame to a JSON file using default write options.
+    /// </summary>
+    /// <param name="path">The local JSON file path to create or replace.</param>
+    /// <remarks>
+    /// This overload uses <see cref="JsonWriteOptions"/> defaults and writes indented JSON. The
+    /// root value is always an array, each DataFrame row becomes one object, and each DataFrame
+    /// column becomes one object property in column order. Null cells become JSON null values.
+    /// Strings, including numeric-looking, Boolean-looking, null-looking, date-looking, and
+    /// formula-like strings, remain JSON strings. Date/time values are written as invariant ISO
+    /// 8601 strings, enum values are written by name, and unsupported nested or custom values
+    /// fail before the target file is replaced.
+    /// </remarks>
+    /// <exception cref="ArgumentException">
+    /// Thrown when <paramref name="path"/> is empty or whitespace, or a cell contains a value
+    /// that cannot be written safely as a JSON primitive.
+    /// </exception>
+    /// <exception cref="ArgumentNullException">
+    /// Thrown when <paramref name="path"/> is <see langword="null"/>.
+    /// </exception>
+    /// <exception cref="DirectoryNotFoundException">
+    /// Thrown by the underlying file system when the target directory does not exist.
+    /// </exception>
+    /// <exception cref="IOException">
+    /// Thrown by the underlying file system when the file cannot be written, replaced, or moved.
+    /// </exception>
+    /// <exception cref="UnauthorizedAccessException">
+    /// Thrown by the underlying file system when access to the path is denied.
+    /// </exception>
+    /// <exception cref="PathTooLongException">
+    /// Thrown by the underlying file system when the path exceeds platform limits.
+    /// </exception>
+    /// <exception cref="NotSupportedException">
+    /// Thrown by the underlying file system when the path format is not supported.
+    /// </exception>
+    public void WriteJson(string path)
+    {
+        WriteJson(path, new JsonWriteOptions());
+    }
+
+    /// <summary>
+    /// Writes the current DataFrame to a JSON file using explicit write options.
+    /// </summary>
+    /// <param name="path">The local JSON file path to create or replace.</param>
+    /// <param name="options">The JSON options controlling insignificant whitespace formatting.</param>
+    /// <remarks>
+    /// Existing files are overwritten rather than appended. The writer manually emits DataFrame
+    /// rows and ordered columns as a JSON array of objects instead of serializing DataFrame
+    /// internals. Numeric values are written as JSON numbers only when the runtime value is one
+    /// of the supported CLR numeric primitives; <see cref="float.NaN"/>,
+    /// <see cref="float.PositiveInfinity"/>, <see cref="float.NegativeInfinity"/>,
+    /// <see cref="double.NaN"/>, <see cref="double.PositiveInfinity"/>, and
+    /// <see cref="double.NegativeInfinity"/> are rejected. The target file is replaced only
+    /// after the full JSON payload has been serialized to a temporary file in the target
+    /// directory.
+    /// </remarks>
+    /// <exception cref="ArgumentException">
+    /// Thrown when <paramref name="path"/> is empty or whitespace, or a cell contains a value
+    /// that cannot be written safely as a JSON primitive.
+    /// </exception>
+    /// <exception cref="ArgumentNullException">
+    /// Thrown when <paramref name="path"/> or <paramref name="options"/> is <see langword="null"/>.
+    /// </exception>
+    /// <exception cref="DirectoryNotFoundException">
+    /// Thrown by the underlying file system when the target directory does not exist.
+    /// </exception>
+    /// <exception cref="IOException">
+    /// Thrown by the underlying file system when the file cannot be written, replaced, or moved.
+    /// </exception>
+    /// <exception cref="UnauthorizedAccessException">
+    /// Thrown by the underlying file system when access to the path is denied.
+    /// </exception>
+    /// <exception cref="PathTooLongException">
+    /// Thrown by the underlying file system when the path exceeds platform limits.
+    /// </exception>
+    /// <exception cref="NotSupportedException">
+    /// Thrown by the underlying file system when the path format is not supported.
+    /// </exception>
+    public void WriteJson(string path, JsonWriteOptions options)
+    {
+        JsonDataFrameWriter.Write(this, path, options);
+    }
+
+    /// <summary>
     /// Writes the current DataFrame to a comma-delimited CSV file using default write options.
     /// </summary>
     /// <param name="path">The local file path to create or replace.</param>
