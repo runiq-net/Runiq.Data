@@ -1,0 +1,4 @@
+Name,Department,Age,Salary,Active
+Ali,Engineering,34,125000.50,true
+Ayşe,Finance,29,98000.00,true
+Mehmet,Sales,,87500.75,false

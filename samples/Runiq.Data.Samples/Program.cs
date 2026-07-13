@@ -3,6 +3,26 @@ using Runiq.Data;
 Console.WriteLine("Runiq.Data samples");
 Console.WriteLine();
 
+var csvPath = Path.Combine(AppContext.BaseDirectory, "Data", "employees.csv");
+var csvEmployees = DataFrame.ReadCsv(csvPath);
+
+Console.WriteLine("CSV employees with header");
+Print(csvEmployees);
+Console.WriteLine();
+
+var headerlessCsvPath = Path.Combine(AppContext.BaseDirectory, "Data", "employees-without-header.csv");
+var employeesWithoutHeader = DataFrame.ReadCsv(
+    headerlessCsvPath,
+    new CsvReadOptions
+    {
+        Header = CsvHeaderMode.Absent,
+        Names = ["Name", "Department", "Age"]
+    });
+
+Console.WriteLine("CSV employees without header using Names");
+Print(employeesWithoutHeader);
+Console.WriteLine();
+
 var employees = DataFrame.Create(new
 {
     Department = new[] { "Engineering", "Finance", "Engineering", "Finance", "Sales" },

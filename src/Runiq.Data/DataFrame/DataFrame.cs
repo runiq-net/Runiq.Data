@@ -1,6 +1,7 @@
 using System.Collections;
 using System.Collections.ObjectModel;
 using System.Reflection;
+using Runiq.Data.IO;
 using Runiq.Data.Schema;
 using Runiq.Data.Series;
 
@@ -200,6 +201,76 @@ public sealed class DataFrame
         ValidateRowTotals(orderedColumns);
 
         return new DataFrame(schema, Array.AsReadOnly(orderedColumns));
+    }
+
+    /// <summary>
+    /// Reads a comma-delimited CSV file into a new DataFrame using inferred header behavior.
+    /// </summary>
+    /// <param name="path">The local file path to read.</param>
+    /// <returns>
+    /// A DataFrame whose column order follows the CSV header and whose column types are inferred
+    /// from all non-missing values in each column.
+    /// </returns>
+    /// <remarks>
+    /// This overload uses <see cref="CsvReadOptions"/> defaults: comma delimiter and
+    /// <see cref="CsvHeaderMode.Infer"/>. With no explicit names, the first row is consumed as
+    /// the header. Empty unquoted cells become missing values, quoted empty cells remain empty
+    /// strings, and quoted delimiters, escaped quotes, and multiline quoted fields are supported.
+    /// </remarks>
+    /// <exception cref="ArgumentException">
+    /// Thrown when <paramref name="path"/> is empty or whitespace, CSV structure is malformed,
+    /// header names are invalid, row field counts differ, or no usable columns can be produced.
+    /// </exception>
+    /// <exception cref="ArgumentNullException">
+    /// Thrown when <paramref name="path"/> is <see langword="null"/>.
+    /// </exception>
+    /// <exception cref="IOException">
+    /// Thrown by the underlying file system when the file cannot be read.
+    /// </exception>
+    public static DataFrame ReadCsv(string path)
+    {
+        return ReadCsv(path, new CsvReadOptions());
+    }
+
+    /// <summary>
+    /// Reads a CSV file into a new DataFrame using explicit CSV parsing options.
+    /// </summary>
+    /// <param name="path">The local file path to read.</param>
+    /// <param name="options">
+    /// The CSV options controlling delimiter, header mode, and optional column names. When
+    /// <see cref="CsvReadOptions.Header"/> is <see cref="CsvHeaderMode.Infer"/>, names being
+    /// supplied means the first row is treated as data; otherwise the first row is treated as a
+    /// header. With <see cref="CsvHeaderMode.Present"/>, the first row is always consumed as a
+    /// header and explicit names replace it. With <see cref="CsvHeaderMode.Absent"/>, the first
+    /// row is always data and missing names are generated as Column1, Column2, and so on.
+    /// </param>
+    /// <returns>
+    /// A DataFrame whose column order follows the resolved names and whose column types are
+    /// inferred from all non-missing values in each column.
+    /// </returns>
+    /// <remarks>
+    /// The supplied options object is required. Explicit names are copied and must be non-empty,
+    /// unique using DataFrame's case-insensitive column-name semantics, and equal to the actual
+    /// CSV column count. Numeric inference uses invariant culture and no date, enum, or Guid
+    /// inference is performed.
+    /// </remarks>
+    /// <exception cref="ArgumentException">
+    /// Thrown when <paramref name="path"/> is empty or whitespace, options contain invalid
+    /// delimiter or name values, CSV structure is malformed, row field counts differ, or no
+    /// usable columns can be produced.
+    /// </exception>
+    /// <exception cref="ArgumentNullException">
+    /// Thrown when <paramref name="path"/> or <paramref name="options"/> is <see langword="null"/>.
+    /// </exception>
+    /// <exception cref="ArgumentOutOfRangeException">
+    /// Thrown when <see cref="CsvReadOptions.Header"/> contains an undefined enum value.
+    /// </exception>
+    /// <exception cref="IOException">
+    /// Thrown by the underlying file system when the file cannot be read.
+    /// </exception>
+    public static DataFrame ReadCsv(string path, CsvReadOptions options)
+    {
+        return CsvDataFrameReader.Read(path, options);
     }
 
     /// <summary>
