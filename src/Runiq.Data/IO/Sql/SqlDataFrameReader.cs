@@ -157,13 +157,10 @@ internal static class SqlDataFrameReader
                 throw new ArgumentException($"A column named '{name}' already exists in the SQL result set.");
             }
 
-            var fieldType = reader.GetFieldType(ordinal);
-            if (!IsSupportedType(fieldType))
-            {
-                throw new ArgumentException($"SQL result column '{name}' has unsupported metadata type '{fieldType}'.");
-            }
-
-            columns[ordinal] = new SqlColumnBuilder(name, fieldType);
+            // Provider metadata is still used for empty-result schema creation, but unsupported
+            // runtime values are rejected while reading cells so diagnostics can include row
+            // index and the actual CLR type returned by the provider.
+            columns[ordinal] = new SqlColumnBuilder(name, reader.GetFieldType(ordinal));
         }
 
         return columns;
