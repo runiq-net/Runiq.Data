@@ -51,6 +51,28 @@ public sealed class ColumnOperations : IEnumerable<ISeries>
     }
 
     /// <summary>
+    /// Appends a validated existing series to the current DataFrame using the supplied column name.
+    /// </summary>
+    /// <param name="name">The canonical name of the column to append.</param>
+    /// <param name="series">The strongly typed series whose values are copied into the new column.</param>
+    /// <remarks>
+    /// This overload supports computed series such as window row numbers. The supplied series is
+    /// caller-owned and is not stored directly; the DataFrame creates its own column snapshot
+    /// using <paramref name="name"/> so the source series remains reusable after mutation.
+    /// </remarks>
+    /// <exception cref="ArgumentException">
+    /// Thrown when the name is invalid or duplicated, or when the series count does not match
+    /// the DataFrame row count.
+    /// </exception>
+    /// <exception cref="ArgumentNullException">
+    /// Thrown when <paramref name="name"/> or <paramref name="series"/> is <see langword="null"/>.
+    /// </exception>
+    public void Add(string name, ISeries series)
+    {
+        dataFrame.AddColumnCore(name, series);
+    }
+
+    /// <summary>
     /// Removes a validated column from the current DataFrame.
     /// </summary>
     /// <param name="name">The column name to remove, matched case-insensitively.</param>

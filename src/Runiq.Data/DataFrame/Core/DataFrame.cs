@@ -6,6 +6,7 @@ using System.Reflection;
 using Runiq.Data.IO;
 using Runiq.Data.Schema;
 using Runiq.Data.Series;
+using Runiq.Data.Windowing;
 
 namespace Runiq.Data;
 
@@ -79,6 +80,23 @@ public sealed class DataFrame
     internal int RowTotalCore => rowCount;
 
     internal int ColumnTotalCore => columnCount;
+
+    /// <summary>
+    /// Starts a non-mutating window definition for this DataFrame.
+    /// </summary>
+    /// <returns>
+    /// A builder that can define optional partition columns, required ordering columns, and
+    /// terminal window calculations such as row numbers.
+    /// </returns>
+    /// <remarks>
+    /// The builder carries only the window definition. It does not add columns or reorder rows;
+    /// computed series remain aligned to the original source rows so callers can explicitly add
+    /// them through <see cref="Columns"/>.
+    /// </remarks>
+    public WindowBuilder Window()
+    {
+        return new WindowBuilder(this);
+    }
 
     /// <summary>
     /// Gets the column with the specified name using case-insensitive lookup.
@@ -1477,6 +1495,17 @@ public sealed class DataFrame
         ReplaceState(addedColumns);
     }
 
+    /// <summary>
+    /// Appends a caller-owned series after validating and snapshotting it under the requested name.
+    /// </summary>
+    internal void AddColumnCore(string name, ISeries series)
+    {
+        var column = CreateAddedColumn(name, series);
+        var addedColumns = columns.Concat([column]).ToArray();
+
+        ReplaceState(addedColumns);
+    }
+
     internal void AppendRowCore(object row)
     {
         var rowValues = CreateValidatedRowValues(row);
@@ -1813,6 +1842,22 @@ public sealed class DataFrame
         return Series<T>.Create(name, values);
     }
 
+    /// <summary>
+    /// Applies the shared DataFrame sorting validation contract to a column.
+    /// </summary>
+    internal static void ValidateSortableColumnCore(ISeries column)
+    {
+        ValidateSortableColumn(column);
+    }
+
+    /// <summary>
+    /// Compares two row values using the shared DataFrame sorting comparison contract.
+    /// </summary>
+    internal static int CompareSortValuesCore(ISeries column, int leftIndex, int rightIndex)
+    {
+        return CompareSortValues(column, leftIndex, rightIndex);
+    }
+
     internal static ISeries CreateSeriesFromValues(string name, Type dataType, IEnumerable<object?> values)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(name);
@@ -1886,6 +1931,26 @@ public sealed class DataFrame
         }
 
         return column;
+    }
+
+    private ISeries CreateAddedColumn(string name, ISeries series)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(name);
+        ArgumentNullException.ThrowIfNull(series);
+
+        if (columnsByName.ContainsKey(name))
+        {
+            throw new ArgumentException($"Column '{name}' conflicts with an existing DataFrame column.", nameof(name));
+        }
+
+        if (series.Count != rowCount)
+        {
+            throw new ArgumentException(
+                $"Column '{name}' contains {series.Count} values, but the DataFrame expects {rowCount} values.",
+                nameof(series));
+        }
+
+        return CreateSeriesWithName(name, series);
     }
 
     private void ReplaceState(ISeries[] updatedColumns)
