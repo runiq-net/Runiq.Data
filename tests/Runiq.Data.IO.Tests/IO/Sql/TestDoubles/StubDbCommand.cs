@@ -5,7 +5,7 @@ using System.Diagnostics.CodeAnalysis;
 namespace Runiq.Data.IO.Tests.IO.Sql.TestDoubles;
 
 /// <summary>
-/// Provides a DbCommand test double that exposes ownership-sensitive command properties.
+/// Provides a DbCommand test double that exposes ownership-sensitive command and execution state.
 /// </summary>
 internal sealed class StubDbCommand : DbCommand
 {
@@ -25,6 +25,10 @@ internal sealed class StubDbCommand : DbCommand
     internal StubDbTransaction? StubTransaction { get; set; }
 
     internal Exception? ExecuteException { get; set; }
+
+    internal int ExecuteNonQueryCount { get; private set; }
+
+    internal List<object?[]> ExecuteNonQueryParameterValues { get; } = [];
 
     internal StubDbDataReader? Reader { get; set; }
 
@@ -63,7 +67,30 @@ internal sealed class StubDbCommand : DbCommand
 
     public override int ExecuteNonQuery()
     {
-        throw new NotSupportedException();
+        ExecuteNonQueryCount++;
+        ExecuteNonQueryParameterValues.Add(parameters.Cast<DbParameter>().Select(static parameter => SnapshotValue(parameter.Value)).ToArray());
+
+        if (ExecuteException is not null)
+        {
+            throw ExecuteException;
+        }
+
+        if (ownerConnection?.ExecuteException is not null)
+        {
+            throw ownerConnection.ExecuteException;
+        }
+
+        if (ownerConnection?.FailExecuteNonQueryOnCall == ExecuteNonQueryCount)
+        {
+            throw new DataException($"ExecuteNonQuery failed on call {ExecuteNonQueryCount}.");
+        }
+
+        if (ownerConnection?.ExecuteNonQueryResults.Count > 0)
+        {
+            return ownerConnection.ExecuteNonQueryResults.Dequeue();
+        }
+
+        return 1;
     }
 
     public override object? ExecuteScalar()
@@ -78,6 +105,11 @@ internal sealed class StubDbCommand : DbCommand
     protected override DbParameter CreateDbParameter()
     {
         return new StubDbParameter();
+    }
+
+    private static object? SnapshotValue(object? value)
+    {
+        return value is byte[] bytes ? bytes.ToArray() : value;
     }
 
     protected override DbDataReader ExecuteDbDataReader(CommandBehavior behavior)

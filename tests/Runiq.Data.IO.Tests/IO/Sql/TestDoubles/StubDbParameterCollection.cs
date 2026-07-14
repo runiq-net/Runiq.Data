@@ -4,7 +4,7 @@ using System.Data.Common;
 namespace Runiq.Data.IO.Tests.IO.Sql.TestDoubles;
 
 /// <summary>
-/// Tracks DbCommand parameters so SQL Read tests can verify that they are not mutated.
+/// Tracks DbCommand parameters so SQL tests can verify command ownership and parameter reuse.
 /// </summary>
 internal sealed class StubDbParameterCollection : DbParameterCollection
 {

@@ -449,6 +449,90 @@ public sealed class DataFrame
     }
 
     /// <summary>
+    /// Appends the current DataFrame rows to an existing SQL table using default write options.
+    /// </summary>
+    /// <param name="connection">
+    /// The database connection used to create and execute the insert command. The connection
+    /// remains caller-owned and is never disposed by this method.
+    /// </param>
+    /// <param name="tableName">
+    /// The destination table name. The value must be either a simple table identifier such as
+    /// <c>Employees</c> or a schema-qualified identifier such as <c>dbo.Employees</c>.
+    /// </param>
+    /// <remarks>
+    /// This overload appends one INSERT per DataFrame row and creates an internal transaction
+    /// so the write is atomic by default. Table and column names must already be safe simple SQL
+    /// identifiers because provider-independent identifier quoting is not performed. If the
+    /// connection is initially closed, it is opened temporarily and restored to the closed state
+    /// after success or failure. A zero-row DataFrame validates identifiers and then performs no
+    /// database work.
+    /// </remarks>
+    /// <exception cref="ArgumentException">
+    /// Thrown when <paramref name="tableName"/> or a DataFrame column name is not a supported
+    /// simple SQL identifier, the DataFrame has no columns, or a column type or value cannot be
+    /// written safely.
+    /// </exception>
+    /// <exception cref="ArgumentNullException">
+    /// Thrown when <paramref name="connection"/> or <paramref name="tableName"/> is
+    /// <see langword="null"/>.
+    /// </exception>
+    /// <exception cref="InvalidOperationException">
+    /// Thrown when the connection state is unsupported or the provider reports an affected row
+    /// count other than one for an inserted DataFrame row.
+    /// </exception>
+    public void WriteSql(DbConnection connection, string tableName)
+    {
+        WriteSql(connection, tableName, new SqlWriteOptions());
+    }
+
+    /// <summary>
+    /// Appends the current DataFrame rows to an existing SQL table using explicit write options.
+    /// </summary>
+    /// <param name="connection">
+    /// The database connection used to create and execute the insert command. The connection
+    /// remains caller-owned and is never disposed by this method.
+    /// </param>
+    /// <param name="tableName">
+    /// The destination table name. The value must be either a simple table identifier such as
+    /// <c>Employees</c> or a schema-qualified identifier such as <c>dbo.Employees</c>.
+    /// </param>
+    /// <param name="options">
+    /// The SQL write options controlling external transaction ownership and optional command
+    /// timeout behavior.
+    /// </param>
+    /// <remarks>
+    /// SQL Write appends to an existing table only. It does not create, replace, truncate,
+    /// upsert, quote identifiers, or discover the destination schema. Each DataFrame column is
+    /// written in column order through a deterministic parameter name (<c>@p0</c>, <c>@p1</c>,
+    /// and so on), null cells become <see cref="DBNull.Value"/>, and cell values are never
+    /// interpolated into SQL text. When <see cref="SqlWriteOptions.Transaction"/> is
+    /// <see langword="null"/>, Runiq.Data creates, commits, rolls back, and disposes an
+    /// internal transaction. When an external transaction is supplied, it is assigned to the
+    /// command but remains caller-owned and is not committed, rolled back, or disposed.
+    /// </remarks>
+    /// <exception cref="ArgumentException">
+    /// Thrown when <paramref name="tableName"/> or a DataFrame column name is not a supported
+    /// simple SQL identifier, the DataFrame has no columns, or a column type or value cannot be
+    /// written safely.
+    /// </exception>
+    /// <exception cref="ArgumentNullException">
+    /// Thrown when <paramref name="connection"/>, <paramref name="tableName"/>, or
+    /// <paramref name="options"/> is <see langword="null"/>.
+    /// </exception>
+    /// <exception cref="ArgumentOutOfRangeException">
+    /// Thrown when <see cref="SqlWriteOptions.CommandTimeout"/> is zero or negative.
+    /// </exception>
+    /// <exception cref="InvalidOperationException">
+    /// Thrown when the connection state is unsupported, an external transaction is not valid for
+    /// the supplied connection, or the provider reports an affected row count other than one for
+    /// an inserted DataFrame row.
+    /// </exception>
+    public void WriteSql(DbConnection connection, string tableName, SqlWriteOptions options)
+    {
+        SqlDataFrameWriter.Write(this, connection, tableName, options);
+    }
+
+    /// <summary>
     /// Writes the current DataFrame to a JSON file using default write options.
     /// </summary>
     /// <param name="path">The local JSON file path to create or replace.</param>
