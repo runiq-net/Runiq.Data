@@ -29,7 +29,7 @@ Selected DataFrame capabilities include:
 - Distinct row projection
 - Grouped aggregation
 - Joins
-- Window RowNumber with partition and ordering definitions
+- Window functions with partition and ordering definitions: RowNumber, Rank, DenseRank
 - Unpivot for reshaping selected wide columns into variable/value rows
 - Non-aggregating pivot with first-seen row and column ordering
 - Pivot table aggregations for Sum, Average, Min, and Max

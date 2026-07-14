@@ -215,12 +215,8 @@ public sealed class OrderedWindowBuilder
     /// </remarks>
     public Series<int> RowNumber()
     {
-        var partitionColumns = partitionColumnNames
-            .Select(source.GetColumn)
-            .ToArray();
-        var orderingColumns = orderingDescriptors
-            .Select(descriptor => new ResolvedOrderingDescriptor(source.GetColumn(descriptor.ColumnName), descriptor.Descending))
-            .ToArray();
+        var partitionColumns = ResolvePartitionColumns();
+        var orderingColumns = ResolveOrderingColumns();
         var sortedRowsByPartition = BuildSortedRowsByPartition(partitionColumns, orderingColumns);
         var rowNumbers = new int[source.Rows.Count()];
 
@@ -233,6 +229,38 @@ public sealed class OrderedWindowBuilder
         }
 
         return Series<int>.Create("RowNumber", rowNumbers);
+    }
+
+    /// <summary>
+    /// Computes SQL-style rank values within each partition and returns them aligned to source rows.
+    /// </summary>
+    /// <returns>
+    /// A strongly typed integer series that can be added to the source DataFrame through
+    /// <see cref="Runiq.Data.DataFrame.Columns"/>.
+    /// </returns>
+    /// <remarks>
+    /// Equal values across all configured ordering columns receive the same rank. Later values
+    /// leave gaps after ties, matching SQL <c>RANK()</c> semantics.
+    /// </remarks>
+    public Series<int> Rank()
+    {
+        return BuildRankSeries("Rank", dense: false);
+    }
+
+    /// <summary>
+    /// Computes SQL-style dense rank values within each partition and returns them aligned to source rows.
+    /// </summary>
+    /// <returns>
+    /// A strongly typed integer series that can be added to the source DataFrame through
+    /// <see cref="Runiq.Data.DataFrame.Columns"/>.
+    /// </returns>
+    /// <remarks>
+    /// Equal values across all configured ordering columns receive the same rank. Later values
+    /// do not leave gaps after ties, matching SQL <c>DENSE_RANK()</c> semantics.
+    /// </remarks>
+    public Series<int> DenseRank()
+    {
+        return BuildRankSeries("DenseRank", dense: true);
     }
 
     private OrderedWindowBuilder AddOrdering(string columnName, bool descending)
@@ -283,6 +311,54 @@ public sealed class OrderedWindowBuilder
         return orderedPartitions;
     }
 
+    /// <summary>
+    /// Builds rank values from the same partition ordering used by RowNumber while preserving
+    /// source-row alignment in the returned series.
+    /// </summary>
+    private Series<int> BuildRankSeries(string seriesName, bool dense)
+    {
+        var partitionColumns = ResolvePartitionColumns();
+        var orderingColumns = ResolveOrderingColumns();
+        var sortedRowsByPartition = BuildSortedRowsByPartition(partitionColumns, orderingColumns);
+        var ranks = new int[source.Rows.Count()];
+
+        foreach (var partitionRows in sortedRowsByPartition)
+        {
+            var currentRank = 0;
+            var denseRank = 0;
+            var previousRowIndex = -1;
+
+            for (var index = 0; index < partitionRows.Count; index++)
+            {
+                var rowIndex = partitionRows[index];
+                if (index == 0 || CompareOrderingKeys(orderingColumns, previousRowIndex, rowIndex) != 0)
+                {
+                    currentRank = index + 1;
+                    denseRank++;
+                }
+
+                ranks[rowIndex] = dense ? denseRank : currentRank;
+                previousRowIndex = rowIndex;
+            }
+        }
+
+        return Series<int>.Create(seriesName, ranks);
+    }
+
+    private ISeries[] ResolvePartitionColumns()
+    {
+        return partitionColumnNames
+            .Select(source.GetColumn)
+            .ToArray();
+    }
+
+    private ResolvedOrderingDescriptor[] ResolveOrderingColumns()
+    {
+        return orderingDescriptors
+            .Select(descriptor => new ResolvedOrderingDescriptor(source.GetColumn(descriptor.ColumnName), descriptor.Descending))
+            .ToArray();
+    }
+
     private static WindowPartitionKey CreatePartitionKey(IReadOnlyList<ISeries> partitionColumns, int rowIndex)
     {
         var values = new object?[partitionColumns.Count];
@@ -299,6 +375,24 @@ public sealed class OrderedWindowBuilder
         int leftIndex,
         int rightIndex)
     {
+        var comparison = CompareOrderingKeys(orderingColumns, leftIndex, rightIndex);
+        if (comparison != 0)
+        {
+            return comparison;
+        }
+
+        return leftIndex.CompareTo(rightIndex);
+    }
+
+    /// <summary>
+    /// Compares only configured ordering values so rank ties are not affected by the stable
+    /// source-row tie-breaker used during sorting.
+    /// </summary>
+    private static int CompareOrderingKeys(
+        IReadOnlyList<ResolvedOrderingDescriptor> orderingColumns,
+        int leftIndex,
+        int rightIndex)
+    {
         foreach (var descriptor in orderingColumns)
         {
             var comparison = Runiq.Data.DataFrame.CompareSortValuesCore(descriptor.Column, leftIndex, rightIndex);
@@ -308,7 +402,7 @@ public sealed class OrderedWindowBuilder
             }
         }
 
-        return leftIndex.CompareTo(rightIndex);
+        return 0;
     }
 }
 
