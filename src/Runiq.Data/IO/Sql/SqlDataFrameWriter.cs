@@ -15,13 +15,13 @@ internal static class SqlDataFrameWriter
         [typeof(char)] = DbType.String,
         [typeof(bool)] = DbType.Boolean,
         [typeof(byte)] = DbType.Byte,
-        [typeof(sbyte)] = DbType.SByte,
+        [typeof(sbyte)] = DbType.Int16,
         [typeof(short)] = DbType.Int16,
-        [typeof(ushort)] = DbType.UInt16,
+        [typeof(ushort)] = DbType.Int32,
         [typeof(int)] = DbType.Int32,
-        [typeof(uint)] = DbType.UInt32,
+        [typeof(uint)] = DbType.Int64,
         [typeof(long)] = DbType.Int64,
-        [typeof(ulong)] = DbType.UInt64,
+        [typeof(ulong)] = DbType.Decimal,
         [typeof(float)] = DbType.Single,
         [typeof(double)] = DbType.Double,
         [typeof(decimal)] = DbType.Decimal,
@@ -272,6 +272,28 @@ internal static class SqlDataFrameWriter
         if (value is byte[] bytes)
         {
             return bytes.ToArray();
+        }
+
+        if (value is sbyte signedByte)
+        {
+            // SQL providers are not required to expose unsigned or SByte parameter types.
+            // Widening keeps the value exact while using provider-independent DbType values.
+            return (short)signedByte;
+        }
+
+        if (value is ushort unsignedShort)
+        {
+            return (int)unsignedShort;
+        }
+
+        if (value is uint unsignedInteger)
+        {
+            return (long)unsignedInteger;
+        }
+
+        if (value is ulong unsignedLong)
+        {
+            return (decimal)unsignedLong;
         }
 
         var valueType = value.GetType();
