@@ -1,6 +1,7 @@
 using System.Collections;
 using System.Collections.ObjectModel;
 using System.Data.Common;
+using System.Globalization;
 using System.Reflection;
 using Runiq.Data.IO;
 using Runiq.Data.Schema;
@@ -1214,6 +1215,51 @@ public sealed class DataFrame
     }
 
     /// <summary>
+    /// Reshapes a DataFrame by spreading one column's distinct values into result columns without aggregation.
+    /// </summary>
+    /// <param name="index">The source column whose first-seen values become result rows.</param>
+    /// <param name="columns">The source column whose first-seen values become dynamic result columns.</param>
+    /// <param name="values">The source column whose cells populate the pivoted result.</param>
+    /// <returns>
+    /// A new DataFrame whose first column is <paramref name="index"/> and whose remaining
+    /// columns are produced from <paramref name="columns"/> values in source first-seen order.
+    /// Missing index and column combinations contain <see langword="null"/>.
+    /// </returns>
+    /// <remarks>
+    /// This method implements a non-aggregating pivot. Each source <paramref name="index"/> and
+    /// <paramref name="columns"/> combination must appear at most once; duplicate combinations
+    /// are rejected instead of being aggregated or silently resolved.
+    /// </remarks>
+    /// <exception cref="ArgumentException">
+    /// Thrown when any role name is empty or whitespace, when the same source column is used for
+    /// more than one role, when a duplicate index and column combination is found, or when pivot
+    /// column values cannot be converted to unique safe result column names.
+    /// </exception>
+    /// <exception cref="ArgumentNullException">
+    /// Thrown when <paramref name="index"/>, <paramref name="columns"/>, or
+    /// <paramref name="values"/> is <see langword="null"/>.
+    /// </exception>
+    /// <exception cref="KeyNotFoundException">Thrown when a requested source column does not exist.</exception>
+    public DataFrame Pivot(string index, string columns, string values)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(index);
+        ArgumentException.ThrowIfNullOrWhiteSpace(columns);
+        ArgumentException.ThrowIfNullOrWhiteSpace(values);
+        ValidateDistinctPivotRoles(index, columns, values);
+
+        var indexColumn = GetColumn(index);
+        var pivotColumn = GetColumn(columns);
+        var valueColumn = GetColumn(values);
+
+        if (rowCount == 0)
+        {
+            return CreateFromSeries([CreateSeriesFromValues(indexColumn.Name, indexColumn.DataType, [])]);
+        }
+
+        return CreatePivotDataFrame(indexColumn, pivotColumn, valueColumn);
+    }
+
+    /// <summary>
     /// Returns a new DataFrame containing the first specified number of rows while preserving the current schema.
     /// </summary>
     /// <param name="count">The maximum number of rows to include.</param>
@@ -2174,6 +2220,184 @@ public sealed class DataFrame
         return keyColumns;
     }
 
+    /// <summary>
+    /// Builds the non-aggregating pivot result while preserving first-seen row and dynamic column order.
+    /// </summary>
+    private DataFrame CreatePivotDataFrame(ISeries indexColumn, ISeries pivotColumn, ISeries valueColumn)
+    {
+        var rowOrdinalsByKey = new Dictionary<PivotIndexKey, int>();
+        var indexValues = new List<object?>();
+        var pivotColumnOrdinalsByValue = new Dictionary<object, int>();
+        var pivotColumnNames = new List<string>();
+        var usedResultColumnNames = new HashSet<string>(StringComparer.OrdinalIgnoreCase) { indexColumn.Name };
+        var assignedCells = new HashSet<PivotCellKey>(PivotCellKeyComparer.Instance);
+        var pivotValuesByRow = new List<List<object?>>();
+
+        for (var rowIndex = 0; rowIndex < rowCount; rowIndex++)
+        {
+            var indexValue = indexColumn.GetValue(rowIndex);
+            var indexKey = new PivotIndexKey(indexValue);
+            if (!rowOrdinalsByKey.TryGetValue(indexKey, out var resultRowOrdinal))
+            {
+                resultRowOrdinal = indexValues.Count;
+                rowOrdinalsByKey.Add(indexKey, resultRowOrdinal);
+                indexValues.Add(indexValue);
+                pivotValuesByRow.Add(CreateNullPaddedPivotRow(pivotColumnNames.Count));
+            }
+
+            var pivotValue = GetSupportedPivotColumnValue(pivotColumn, rowIndex);
+            if (!pivotColumnOrdinalsByValue.TryGetValue(pivotValue, out var resultColumnOrdinal))
+            {
+                var resultColumnName = ConvertPivotValueToColumnName(pivotColumn, pivotValue);
+                if (!usedResultColumnNames.Add(resultColumnName))
+                {
+                    throw new ArgumentException(
+                        $"Pivot column '{pivotColumn.Name}' value '{pivotValue}' produces result column name '{resultColumnName}', which conflicts with another pivot result column or the index column '{indexColumn.Name}'.");
+                }
+
+                resultColumnOrdinal = pivotColumnNames.Count;
+                pivotColumnOrdinalsByValue.Add(pivotValue, resultColumnOrdinal);
+                pivotColumnNames.Add(resultColumnName);
+                foreach (var pivotRow in pivotValuesByRow)
+                {
+                    pivotRow.Add(null);
+                }
+            }
+
+            var cellKey = new PivotCellKey(indexValue, pivotValue);
+            if (!assignedCells.Add(cellKey))
+            {
+                throw new ArgumentException(
+                    $"Pivot requires a unique value for each index and column combination, but index column '{indexColumn.Name}' value '{indexValue}' and pivot column '{pivotColumn.Name}' value '{pivotValue}' appear more than once. Use PivotTable when aggregation is required.");
+            }
+
+            pivotValuesByRow[resultRowOrdinal][resultColumnOrdinal] = valueColumn.GetValue(rowIndex);
+        }
+
+        var resultColumns = new List<ISeries>
+        {
+            CreateSeriesFromValues(indexColumn.Name, indexColumn.DataType, indexValues)
+        };
+
+        for (var resultColumnIndex = 0; resultColumnIndex < pivotColumnNames.Count; resultColumnIndex++)
+        {
+            var columnValues = pivotValuesByRow
+                .Select(rowValues => rowValues[resultColumnIndex])
+                .ToArray();
+
+            resultColumns.Add(CreateSeriesFromValues(pivotColumnNames[resultColumnIndex], typeof(object), columnValues));
+        }
+
+        return CreateFromSeries(resultColumns);
+    }
+
+    /// <summary>
+    /// Creates a result row initialized with null values for pivot combinations not seen yet.
+    /// </summary>
+    private static List<object?> CreateNullPaddedPivotRow(int columnCount)
+    {
+        var values = new List<object?>(columnCount);
+        for (var index = 0; index < columnCount; index++)
+        {
+            values.Add(null);
+        }
+
+        return values;
+    }
+
+    /// <summary>
+    /// Rejects ambiguous pivot role assignments before any result construction begins.
+    /// </summary>
+    private static void ValidateDistinctPivotRoles(string index, string columns, string values)
+    {
+        if (string.Equals(index, columns, StringComparison.OrdinalIgnoreCase))
+        {
+            throw new ArgumentException("Pivot index and columns roles must use different source columns.", nameof(columns));
+        }
+
+        if (string.Equals(index, values, StringComparison.OrdinalIgnoreCase))
+        {
+            throw new ArgumentException("Pivot index and values roles must use different source columns.", nameof(values));
+        }
+
+        if (string.Equals(columns, values, StringComparison.OrdinalIgnoreCase))
+        {
+            throw new ArgumentException("Pivot columns and values roles must use different source columns.", nameof(values));
+        }
+    }
+
+    /// <summary>
+    /// Returns a pivot column value only when it can be converted to a deterministic result column name.
+    /// </summary>
+    private static object GetSupportedPivotColumnValue(ISeries pivotColumn, int rowIndex)
+    {
+        var value = pivotColumn.GetValue(rowIndex);
+        if (value is null)
+        {
+            throw new ArgumentException($"Pivot column '{pivotColumn.Name}' contains null at row {rowIndex}; null cannot be used as a result column name.");
+        }
+
+        // Pivot does not use ToString fallback because arbitrary object formatting can be unstable
+        // and can hide unsupported complex values behind ambiguous column names.
+        if (value is string or bool or char or byte or sbyte or short or ushort or int or uint or long or ulong or float or double or decimal or DateTime or DateTimeOffset or TimeSpan or Guid)
+        {
+            return value;
+        }
+
+        var valueType = value.GetType();
+        if (valueType.IsEnum)
+        {
+            return value;
+        }
+
+        if (value is IEnumerable || value is IDictionary)
+        {
+            throw new ArgumentException(
+                $"Pivot column '{pivotColumn.Name}' contains unsupported collection or dictionary value type '{valueType}'.");
+        }
+
+        throw new ArgumentException(
+            $"Pivot column '{pivotColumn.Name}' contains unsupported value type '{valueType}'.");
+    }
+
+    /// <summary>
+    /// Converts supported pivot values to culture-invariant result column names without object fallback.
+    /// </summary>
+    private static string ConvertPivotValueToColumnName(ISeries pivotColumn, object value)
+    {
+        var columnName = value switch
+        {
+            string stringValue => stringValue,
+            bool boolValue => boolValue.ToString(CultureInfo.InvariantCulture),
+            char charValue => charValue.ToString(),
+            byte byteValue => byteValue.ToString(CultureInfo.InvariantCulture),
+            sbyte sbyteValue => sbyteValue.ToString(CultureInfo.InvariantCulture),
+            short shortValue => shortValue.ToString(CultureInfo.InvariantCulture),
+            ushort ushortValue => ushortValue.ToString(CultureInfo.InvariantCulture),
+            int intValue => intValue.ToString(CultureInfo.InvariantCulture),
+            uint uintValue => uintValue.ToString(CultureInfo.InvariantCulture),
+            long longValue => longValue.ToString(CultureInfo.InvariantCulture),
+            ulong ulongValue => ulongValue.ToString(CultureInfo.InvariantCulture),
+            float floatValue => floatValue.ToString("R", CultureInfo.InvariantCulture),
+            double doubleValue => doubleValue.ToString("R", CultureInfo.InvariantCulture),
+            decimal decimalValue => decimalValue.ToString(CultureInfo.InvariantCulture),
+            DateTime dateTimeValue => dateTimeValue.ToString("O", CultureInfo.InvariantCulture),
+            DateTimeOffset dateTimeOffsetValue => dateTimeOffsetValue.ToString("O", CultureInfo.InvariantCulture),
+            TimeSpan timeSpanValue => timeSpanValue.ToString("c", CultureInfo.InvariantCulture),
+            Guid guidValue => guidValue.ToString("D", CultureInfo.InvariantCulture),
+            _ when value.GetType().IsEnum => Convert.ToString(value, CultureInfo.InvariantCulture),
+            _ => null
+        };
+
+        if (string.IsNullOrWhiteSpace(columnName))
+        {
+            throw new ArgumentException(
+                $"Pivot column '{pivotColumn.Name}' value '{value}' cannot produce a non-empty result column name.");
+        }
+
+        return columnName!;
+    }
+
     private static ISeries CreateAppendedSeries(ISeries column, object? appendedValue)
     {
         var values = Array.CreateInstance(column.DataType, column.Count + 1);
@@ -2423,6 +2647,39 @@ public sealed class DataFrame
             }
 
             return hash.ToHashCode();
+        }
+    }
+
+    /// <summary>
+    /// Represents a single source index and pivot value combination used for duplicate detection.
+    /// </summary>
+    private readonly record struct PivotCellKey(object? IndexValue, object PivotValue);
+
+    /// <summary>
+    /// Wraps nullable index values so null can participate safely in dictionary lookup.
+    /// </summary>
+    private readonly record struct PivotIndexKey(object? Value);
+
+    /// <summary>
+    /// Compares pivot cells using the same default cell equality used by existing row-key operations.
+    /// </summary>
+    private sealed class PivotCellKeyComparer : IEqualityComparer<PivotCellKey>
+    {
+        internal static readonly PivotCellKeyComparer Instance = new();
+
+        private PivotCellKeyComparer()
+        {
+        }
+
+        public bool Equals(PivotCellKey left, PivotCellKey right)
+        {
+            return EqualityComparer<object?>.Default.Equals(left.IndexValue, right.IndexValue) &&
+                EqualityComparer<object>.Default.Equals(left.PivotValue, right.PivotValue);
+        }
+
+        public int GetHashCode(PivotCellKey key)
+        {
+            return HashCode.Combine(key.IndexValue, key.PivotValue);
         }
     }
 }

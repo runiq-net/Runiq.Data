@@ -22,6 +22,15 @@ Current IO capabilities include:
 
 SQL Read and existing-table append through ADO.NET DbConnection, DbCommand and DbTransaction. Provider-independent ADO.NET core with contract coverage for SQLite, SQL Server and PostgreSQL.
 
+Selected DataFrame capabilities include:
+
+- Row and column mutation facades
+- Filtering and sorting
+- Distinct row projection
+- Grouped aggregation
+- Joins
+- Non-aggregating pivot with first-seen row and column ordering
+
 SQL sample project:
 
 - Runiq.Data.Samples.Sql - SQL Read and existing-table append with SQLite
