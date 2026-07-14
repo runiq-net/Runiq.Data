@@ -9,6 +9,16 @@ Runiq.Data is an enterprise-focused DataFrame and data processing library for .N
 
 It is not just a Pandas clone. It aims to provide DataFrame, Series, schema management, validation, profiling, ETL and AI-ready data processing capabilities for C# applications.
 
+## Installation
+
+Install the stable package from NuGet.org:
+
+```powershell
+dotnet add package Runiq.Data
+```
+
+Or install `Runiq.Data` from the Visual Studio NuGet Package Manager.
+
 Current IO capabilities include:
 
 - CSV Read
@@ -29,7 +39,7 @@ Selected DataFrame capabilities include:
 - Distinct row projection
 - Grouped aggregation
 - Joins
-- Window functions with partition and ordering definitions: RowNumber, Rank, DenseRank
+- Window functions with partition and ordering definitions: RowNumber, Rank, DenseRank, Lag, Lead
 - Unpivot for reshaping selected wide columns into variable/value rows
 - Non-aggregating pivot with first-seen row and column ordering
 - Pivot table aggregations for Sum, Average, Min, and Max

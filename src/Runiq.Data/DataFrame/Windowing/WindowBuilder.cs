@@ -263,6 +263,60 @@ public sealed class OrderedWindowBuilder
         return BuildRankSeries("DenseRank", dense: true);
     }
 
+    /// <summary>
+    /// Returns values from an earlier row in the same ordered partition.
+    /// </summary>
+    /// <param name="column">The existing source column whose values will be shifted.</param>
+    /// <param name="offset">The positive number of ordered rows to look behind the current row.</param>
+    /// <returns>
+    /// A series aligned to the source DataFrame rows. Rows without an earlier row at the requested
+    /// offset contain <see langword="null"/>.
+    /// </returns>
+    /// <remarks>
+    /// The result preserves the source column type for reference and nullable value types. For
+    /// non-nullable value types, the result uses the corresponding nullable value type so partition
+    /// boundary rows can carry nulls.
+    /// </remarks>
+    /// <exception cref="ArgumentException">
+    /// Thrown when <paramref name="column"/> is empty or whitespace, or when
+    /// <paramref name="offset"/> is zero or negative.
+    /// </exception>
+    /// <exception cref="ArgumentNullException">
+    /// Thrown when <paramref name="column"/> is <see langword="null"/>.
+    /// </exception>
+    /// <exception cref="KeyNotFoundException">Thrown when the named column does not exist.</exception>
+    public ISeries Lag(string column, int offset = 1)
+    {
+        return BuildShiftSeries(column, offset, lookAhead: false);
+    }
+
+    /// <summary>
+    /// Returns values from a later row in the same ordered partition.
+    /// </summary>
+    /// <param name="column">The existing source column whose values will be shifted.</param>
+    /// <param name="offset">The positive number of ordered rows to look ahead from the current row.</param>
+    /// <returns>
+    /// A series aligned to the source DataFrame rows. Rows without a later row at the requested
+    /// offset contain <see langword="null"/>.
+    /// </returns>
+    /// <remarks>
+    /// The result preserves the source column type for reference and nullable value types. For
+    /// non-nullable value types, the result uses the corresponding nullable value type so partition
+    /// boundary rows can carry nulls.
+    /// </remarks>
+    /// <exception cref="ArgumentException">
+    /// Thrown when <paramref name="column"/> is empty or whitespace, or when
+    /// <paramref name="offset"/> is zero or negative.
+    /// </exception>
+    /// <exception cref="ArgumentNullException">
+    /// Thrown when <paramref name="column"/> is <see langword="null"/>.
+    /// </exception>
+    /// <exception cref="KeyNotFoundException">Thrown when the named column does not exist.</exception>
+    public ISeries Lead(string column, int offset = 1)
+    {
+        return BuildShiftSeries(column, offset, lookAhead: true);
+    }
+
     private OrderedWindowBuilder AddOrdering(string columnName, bool descending)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(columnName);
@@ -345,6 +399,42 @@ public sealed class OrderedWindowBuilder
         return Series<int>.Create(seriesName, ranks);
     }
 
+    /// <summary>
+    /// Builds Lag or Lead values from the existing ordered partition rows without involving the
+    /// shifted target column in ordering decisions.
+    /// </summary>
+    private ISeries BuildShiftSeries(string columnName, int offset, bool lookAhead)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(columnName);
+        if (offset <= 0)
+        {
+            throw new ArgumentException("Window shift offset must be greater than zero.", nameof(offset));
+        }
+
+        var targetColumn = source.GetColumn(columnName);
+        var partitionColumns = ResolvePartitionColumns();
+        var orderingColumns = ResolveOrderingColumns();
+        var sortedRowsByPartition = BuildSortedRowsByPartition(partitionColumns, orderingColumns);
+        var resultValues = new object?[source.Rows.Count()];
+
+        foreach (var partitionRows in sortedRowsByPartition)
+        {
+            for (var index = 0; index < partitionRows.Count; index++)
+            {
+                var sourceValueIndex = lookAhead ? index + offset : index - offset;
+                if (sourceValueIndex >= 0 && sourceValueIndex < partitionRows.Count)
+                {
+                    resultValues[partitionRows[index]] = targetColumn.GetValue(partitionRows[sourceValueIndex]);
+                }
+            }
+        }
+
+        return Runiq.Data.DataFrame.CreateSeriesFromValues(
+            targetColumn.Name,
+            GetShiftResultType(targetColumn.DataType),
+            resultValues);
+    }
+
     private ISeries[] ResolvePartitionColumns()
     {
         return partitionColumnNames
@@ -357,6 +447,19 @@ public sealed class OrderedWindowBuilder
         return orderingDescriptors
             .Select(descriptor => new ResolvedOrderingDescriptor(source.GetColumn(descriptor.ColumnName), descriptor.Descending))
             .ToArray();
+    }
+
+    /// <summary>
+    /// Selects a result type that preserves target values while allowing boundary nulls.
+    /// </summary>
+    private static Type GetShiftResultType(Type sourceType)
+    {
+        if (!sourceType.IsValueType || Nullable.GetUnderlyingType(sourceType) is not null)
+        {
+            return sourceType;
+        }
+
+        return typeof(Nullable<>).MakeGenericType(sourceType);
     }
 
     private static WindowPartitionKey CreatePartitionKey(IReadOnlyList<ISeries> partitionColumns, int rowIndex)

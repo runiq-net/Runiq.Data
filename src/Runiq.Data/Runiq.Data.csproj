@@ -2,10 +2,32 @@
 
   <PropertyGroup>
     <TargetFramework>net10.0</TargetFramework>
-    <Version>0.1.0</Version>
+    <Version>1.0.0</Version>
     <ImplicitUsings>enable</ImplicitUsings>
     <Nullable>enable</Nullable>
+    <IsPackable>true</IsPackable>
+    <PackageId>Runiq.Data</PackageId>
+    <Title>Runiq.Data</Title>
+    <Authors>Runiq</Authors>
+    <Company>Runiq</Company>
+    <Description>A flexible and powerful data analysis and manipulation library for .NET, providing tabular data structures, data transformation functions, and much more.</Description>
+    <PackageLicenseExpression>MIT</PackageLicenseExpression>
+    <PackageReadmeFile>README.md</PackageReadmeFile>
+    <PackageIcon>runiq-icon.png</PackageIcon>
+    <PackageProjectUrl>https://runiq.net/</PackageProjectUrl>
+    <RepositoryUrl>https://github.com/runiq-net/Runiq.Data</RepositoryUrl>
+    <RepositoryType>git</RepositoryType>
+    <PackageTags>dataframe;data-analysis;data-manipulation;data-science;dotnet;csharp</PackageTags>
+    <PublishRepositoryUrl>true</PublishRepositoryUrl>
+    <IncludeSymbols>true</IncludeSymbols>
+    <SymbolPackageFormat>snupkg</SymbolPackageFormat>
+    <GenerateDocumentationFile>true</GenerateDocumentationFile>
   </PropertyGroup>
+
+  <ItemGroup>
+    <None Include="..\..\README.md" Pack="true" PackagePath="\" />
+    <None Include="..\..\assets\runiq-icon.png" Pack="true" PackagePath="\" />
+  </ItemGroup>
 
   <ItemGroup>
     <PackageReference Include="ClosedXML" Version="0.105.0" />

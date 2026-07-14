@@ -132,6 +132,10 @@ public sealed class ColumnOperations : IEnumerable<ISeries>
         return dataFrame.ColumnTotalCore;
     }
 
+    /// <summary>
+    /// Returns an enumerator that iterates over the DataFrame columns in schema order.
+    /// </summary>
+    /// <returns>An enumerator over the current column series collection.</returns>
     public IEnumerator<ISeries> GetEnumerator()
     {
         return dataFrame.ColumnSeries.GetEnumerator();
