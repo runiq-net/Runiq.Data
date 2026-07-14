@@ -317,6 +317,54 @@ public sealed class OrderedWindowBuilder
         return BuildShiftSeries(column, offset, lookAhead: true);
     }
 
+    /// <summary>
+    /// Returns the first value from the configured ordered partition for every row in that partition.
+    /// </summary>
+    /// <param name="column">The existing source column whose ordered first value will be returned.</param>
+    /// <returns>
+    /// A series aligned to the source DataFrame rows and using the same CLR value type as the
+    /// source column.
+    /// </returns>
+    /// <remarks>
+    /// Null target values are not skipped. The value from the first physical row after the
+    /// configured ordering is copied to every source row in the partition.
+    /// </remarks>
+    /// <exception cref="ArgumentException">
+    /// Thrown when <paramref name="column"/> is empty or whitespace.
+    /// </exception>
+    /// <exception cref="ArgumentNullException">
+    /// Thrown when <paramref name="column"/> is <see langword="null"/>.
+    /// </exception>
+    /// <exception cref="KeyNotFoundException">Thrown when the named column does not exist.</exception>
+    public ISeries FirstValue(string column)
+    {
+        return BuildBoundaryValueSeries(column, useLastValue: false);
+    }
+
+    /// <summary>
+    /// Returns the last value from the configured ordered partition for every row in that partition.
+    /// </summary>
+    /// <param name="column">The existing source column whose ordered last value will be returned.</param>
+    /// <returns>
+    /// A series aligned to the source DataFrame rows and using the same CLR value type as the
+    /// source column.
+    /// </returns>
+    /// <remarks>
+    /// The calculation always uses the full partition after ordering, equivalent to an unbounded
+    /// SQL window frame. Null target values are not skipped.
+    /// </remarks>
+    /// <exception cref="ArgumentException">
+    /// Thrown when <paramref name="column"/> is empty or whitespace.
+    /// </exception>
+    /// <exception cref="ArgumentNullException">
+    /// Thrown when <paramref name="column"/> is <see langword="null"/>.
+    /// </exception>
+    /// <exception cref="KeyNotFoundException">Thrown when the named column does not exist.</exception>
+    public ISeries LastValue(string column)
+    {
+        return BuildBoundaryValueSeries(column, useLastValue: true);
+    }
+
     private OrderedWindowBuilder AddOrdering(string columnName, bool descending)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(columnName);
@@ -433,6 +481,34 @@ public sealed class OrderedWindowBuilder
             targetColumn.Name,
             GetShiftResultType(targetColumn.DataType),
             resultValues);
+    }
+
+    /// <summary>
+    /// Builds FirstValue or LastValue results from ordered partition boundary rows while preserving
+    /// source-row alignment and the source column type.
+    /// </summary>
+    private ISeries BuildBoundaryValueSeries(string columnName, bool useLastValue)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(columnName);
+
+        var targetColumn = source.GetColumn(columnName);
+        var partitionColumns = ResolvePartitionColumns();
+        var orderingColumns = ResolveOrderingColumns();
+        var sortedRowsByPartition = BuildSortedRowsByPartition(partitionColumns, orderingColumns);
+        var resultValues = new object?[source.Rows.Count()];
+
+        foreach (var partitionRows in sortedRowsByPartition)
+        {
+            var sourceValueIndex = useLastValue ? partitionRows.Count - 1 : 0;
+            var boundaryValue = targetColumn.GetValue(partitionRows[sourceValueIndex]);
+
+            foreach (var rowIndex in partitionRows)
+            {
+                resultValues[rowIndex] = boundaryValue;
+            }
+        }
+
+        return Runiq.Data.DataFrame.CreateSeriesFromValues(targetColumn.Name, targetColumn.DataType, resultValues);
     }
 
     private ISeries[] ResolvePartitionColumns()
