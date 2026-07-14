@@ -43,6 +43,8 @@ Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Runiq.Data.PostgreSql.Integ
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Runiq.Data.Samples.Pivoting", "samples\Runiq.Data.Samples.Pivoting\Runiq.Data.Samples.Pivoting.csproj", "{1B761B53-95B5-436E-829C-F28B917FD88E}"
 EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Runiq.Data.Samples.Windowing", "samples\Runiq.Data.Samples.Windowing\Runiq.Data.Samples.Windowing.csproj", "{E06BD887-5897-4C7C-AE62-436BBFBE63E7}"
+EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|Any CPU = Debug|Any CPU
@@ -257,6 +259,18 @@ Global
 		{1B761B53-95B5-436E-829C-F28B917FD88E}.Release|x64.Build.0 = Release|Any CPU
 		{1B761B53-95B5-436E-829C-F28B917FD88E}.Release|x86.ActiveCfg = Release|Any CPU
 		{1B761B53-95B5-436E-829C-F28B917FD88E}.Release|x86.Build.0 = Release|Any CPU
+		{E06BD887-5897-4C7C-AE62-436BBFBE63E7}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{E06BD887-5897-4C7C-AE62-436BBFBE63E7}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{E06BD887-5897-4C7C-AE62-436BBFBE63E7}.Debug|x64.ActiveCfg = Debug|Any CPU
+		{E06BD887-5897-4C7C-AE62-436BBFBE63E7}.Debug|x64.Build.0 = Debug|Any CPU
+		{E06BD887-5897-4C7C-AE62-436BBFBE63E7}.Debug|x86.ActiveCfg = Debug|Any CPU
+		{E06BD887-5897-4C7C-AE62-436BBFBE63E7}.Debug|x86.Build.0 = Debug|Any CPU
+		{E06BD887-5897-4C7C-AE62-436BBFBE63E7}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{E06BD887-5897-4C7C-AE62-436BBFBE63E7}.Release|Any CPU.Build.0 = Release|Any CPU
+		{E06BD887-5897-4C7C-AE62-436BBFBE63E7}.Release|x64.ActiveCfg = Release|Any CPU
+		{E06BD887-5897-4C7C-AE62-436BBFBE63E7}.Release|x64.Build.0 = Release|Any CPU
+		{E06BD887-5897-4C7C-AE62-436BBFBE63E7}.Release|x86.ActiveCfg = Release|Any CPU
+		{E06BD887-5897-4C7C-AE62-436BBFBE63E7}.Release|x86.Build.0 = Release|Any CPU
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE
@@ -279,5 +293,6 @@ Global
 		{DAA05351-3AD9-4F7C-98A8-6068AD830DDE} = {0AB3BF05-4346-4AA6-1389-037BE0695223}
 		{0458B1F8-E93E-438A-A6D5-82104F56EEF6} = {0AB3BF05-4346-4AA6-1389-037BE0695223}
 		{1B761B53-95B5-436E-829C-F28B917FD88E} = {5D20AA90-6969-D8BD-9DCD-8634F4692FDA}
+		{E06BD887-5897-4C7C-AE62-436BBFBE63E7} = {5D20AA90-6969-D8BD-9DCD-8634F4692FDA}
 	EndGlobalSection
 EndGlobal

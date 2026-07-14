@@ -39,7 +39,7 @@ Selected DataFrame capabilities include:
 - Distinct row projection
 - Grouped aggregation
 - Joins
-- Window functions with partition and ordering definitions: RowNumber, Rank, DenseRank, Lag, Lead, FirstValue, LastValue, partition Sum, partition Average, partition Min, partition Max, RunningSum, RunningAverage, MovingSum, MovingAverage
+- Window functions with partition and ordering definitions: RowNumber, Rank, DenseRank, Lag, Lead, FirstValue, LastValue, Sum, Average, Min, Max, RunningSum, RunningAverage, MovingSum, MovingAverage
 - Unpivot for reshaping selected wide columns into variable/value rows
 - Non-aggregating pivot with first-seen row and column ordering
 - Pivot table aggregations for Sum, Average, Min, and Max
@@ -48,6 +48,7 @@ Sample projects:
 
 - Runiq.Data.Samples.Sql - SQL Read and existing-table append with SQLite
 - Runiq.Data.Samples.Pivoting - Pivot, PivotTable Sum, and Unpivot reshaping
+- Runiq.Data.Samples.Windowing - Window ranking, value navigation, partition, running, and moving aggregations
 
 Pivot table example:
 
