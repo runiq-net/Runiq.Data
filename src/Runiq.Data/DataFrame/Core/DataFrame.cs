@@ -1,5 +1,6 @@
 using System.Collections;
 using System.Collections.ObjectModel;
+using System.Data.Common;
 using System.Reflection;
 using Runiq.Data.IO;
 using Runiq.Data.Schema;
@@ -382,6 +383,69 @@ public sealed class DataFrame
     public static DataFrame ReadJson(string path)
     {
         return JsonDataFrameReader.Read(path);
+    }
+
+    /// <summary>
+    /// Reads the single tabular result set returned by a SQL command text into a new DataFrame.
+    /// </summary>
+    /// <param name="connection">
+    /// The database connection used to create and execute the command. The connection remains
+    /// caller-owned and is never disposed by this method.
+    /// </param>
+    /// <param name="commandText">The non-empty SQL command text to execute.</param>
+    /// <returns>
+    /// A DataFrame whose column order and row order match the provider result set.
+    /// </returns>
+    /// <remarks>
+    /// If the connection is initially closed, it is opened temporarily and restored to the
+    /// closed state after the operation completes, including failure paths. Provider-specific
+    /// SQL types are not inferred; supported CLR values returned by <see cref="DbDataReader.GetValue(int)"/>
+    /// are preserved.
+    /// </remarks>
+    /// <exception cref="ArgumentException">
+    /// Thrown when <paramref name="commandText"/> is empty or contains only whitespace, or when
+    /// the SQL result shape or values cannot be represented as a DataFrame.
+    /// </exception>
+    /// <exception cref="ArgumentNullException">
+    /// Thrown when <paramref name="connection"/> or <paramref name="commandText"/> is
+    /// <see langword="null"/>.
+    /// </exception>
+    /// <exception cref="InvalidOperationException">
+    /// Thrown when the connection is in an unsupported state.
+    /// </exception>
+    public static DataFrame ReadSql(DbConnection connection, string commandText)
+    {
+        return SqlDataFrameReader.Read(connection, commandText);
+    }
+
+    /// <summary>
+    /// Reads the single tabular result set returned by a database command into a new DataFrame.
+    /// </summary>
+    /// <param name="command">
+    /// The database command to execute. The command, its connection, parameters, transaction,
+    /// timeout, type, and command text remain caller-owned and are not mutated by this method.
+    /// </param>
+    /// <returns>
+    /// A DataFrame whose column order and row order match the provider result set.
+    /// </returns>
+    /// <remarks>
+    /// If the command connection is initially closed, it is opened temporarily and restored to
+    /// the closed state after the operation completes, including failure paths. The returned
+    /// reader is always disposed by Runiq.Data.
+    /// </remarks>
+    /// <exception cref="ArgumentException">
+    /// Thrown when the command text is empty or whitespace, or when the SQL result shape or
+    /// values cannot be represented as a DataFrame.
+    /// </exception>
+    /// <exception cref="ArgumentNullException">
+    /// Thrown when <paramref name="command"/> or its command text is <see langword="null"/>.
+    /// </exception>
+    /// <exception cref="InvalidOperationException">
+    /// Thrown when the command has no connection or the connection is in an unsupported state.
+    /// </exception>
+    public static DataFrame ReadSql(DbCommand command)
+    {
+        return SqlDataFrameReader.Read(command);
     }
 
     /// <summary>
