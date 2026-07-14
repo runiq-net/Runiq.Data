@@ -616,6 +616,73 @@ public sealed class OrderedWindowBuilder
             (aggregateColumn, rowIndexes) => Runiq.Data.DataFrame.AverageColumn(aggregateColumn, rowIndexes));
     }
 
+    /// <summary>
+    /// Sums a numeric column over the current ordered row and a fixed number of previous rows.
+    /// </summary>
+    /// <param name="column">The existing numeric source column to aggregate.</param>
+    /// <param name="windowSize">The positive maximum number of ordered rows included in each moving window.</param>
+    /// <returns>
+    /// A series aligned to the source DataFrame rows. The result type follows the DataFrame-level
+    /// numeric sum contract.
+    /// </returns>
+    /// <remarks>
+    /// Moving windows never cross partition boundaries. Early partition rows use the available
+    /// partial window, equivalent to a fixed minimum period of one.
+    /// </remarks>
+    /// <exception cref="ArgumentException">
+    /// Thrown when <paramref name="column"/> is empty or whitespace, <paramref name="windowSize"/>
+    /// is zero or negative, the target values contain null or incompatible values in a non-empty
+    /// window, or the target column is not numeric.
+    /// </exception>
+    /// <exception cref="ArgumentNullException">
+    /// Thrown when <paramref name="column"/> is <see langword="null"/>.
+    /// </exception>
+    /// <exception cref="KeyNotFoundException">Thrown when the named column does not exist.</exception>
+    /// <exception cref="OverflowException">Thrown when checked integer or decimal addition overflows.</exception>
+    public ISeries MovingSum(string column, int windowSize)
+    {
+        ValidateMovingWindowSize(windowSize);
+
+        var targetColumn = source.GetColumn(column);
+        var resultType = Runiq.Data.DataFrame.GetSumResultType(targetColumn);
+
+        return BuildMovingAggregateSeries(targetColumn, resultType, windowSize, Runiq.Data.DataFrame.SumColumn);
+    }
+
+    /// <summary>
+    /// Averages a numeric column over the current ordered row and a fixed number of previous rows.
+    /// </summary>
+    /// <param name="column">The existing numeric source column to aggregate.</param>
+    /// <param name="windowSize">The positive maximum number of ordered rows included in each moving window.</param>
+    /// <returns>A <see cref="double"/> series aligned to the source DataFrame rows.</returns>
+    /// <remarks>
+    /// Moving windows never cross partition boundaries. Early partition rows use the available
+    /// partial window, equivalent to a fixed minimum period of one.
+    /// </remarks>
+    /// <exception cref="ArgumentException">
+    /// Thrown when <paramref name="column"/> is empty or whitespace, <paramref name="windowSize"/>
+    /// is zero or negative, the target values contain null or incompatible values in a non-empty
+    /// window, or the target column is not numeric.
+    /// </exception>
+    /// <exception cref="ArgumentNullException">
+    /// Thrown when <paramref name="column"/> is <see langword="null"/>.
+    /// </exception>
+    /// <exception cref="KeyNotFoundException">Thrown when the named column does not exist.</exception>
+    /// <exception cref="OverflowException">Thrown when checked integer or decimal addition overflows before division.</exception>
+    public ISeries MovingAverage(string column, int windowSize)
+    {
+        ValidateMovingWindowSize(windowSize);
+
+        var targetColumn = source.GetColumn(column);
+        Runiq.Data.DataFrame.GetNumericAggregationType(targetColumn);
+
+        return BuildMovingAggregateSeries(
+            targetColumn,
+            typeof(double),
+            windowSize,
+            (aggregateColumn, rowIndexes) => Runiq.Data.DataFrame.AverageColumn(aggregateColumn, rowIndexes));
+    }
+
     private OrderedWindowBuilder AddOrdering(string columnName, bool descending)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(columnName);
@@ -773,6 +840,47 @@ public sealed class OrderedWindowBuilder
         }
 
         return Runiq.Data.DataFrame.CreateSeriesFromValues(targetColumn.Name, resultType, resultValues);
+    }
+
+    /// <summary>
+    /// Builds ordered moving aggregate values by reusing the DataFrame aggregate contract for each
+    /// partition-local trailing row window and writing results back to source row positions.
+    /// </summary>
+    private ISeries BuildMovingAggregateSeries(
+        ISeries targetColumn,
+        Type resultType,
+        int windowSize,
+        Func<ISeries, IReadOnlyList<int>, object?> aggregate)
+    {
+        var partitionColumns = ResolvePartitionColumns();
+        var orderingColumns = ResolveOrderingColumns();
+        var sortedRowsByPartition = BuildSortedRowsByPartition(partitionColumns, orderingColumns);
+        var resultValues = new object?[source.Rows.Count()];
+
+        foreach (var partitionRows in sortedRowsByPartition)
+        {
+            for (var index = 0; index < partitionRows.Count; index++)
+            {
+                var firstWindowIndex = Math.Max(0, index - windowSize + 1);
+                var movingRows = new List<int>(index - firstWindowIndex + 1);
+                for (var movingIndex = firstWindowIndex; movingIndex <= index; movingIndex++)
+                {
+                    movingRows.Add(partitionRows[movingIndex]);
+                }
+
+                resultValues[partitionRows[index]] = aggregate(targetColumn, movingRows);
+            }
+        }
+
+        return Runiq.Data.DataFrame.CreateSeriesFromValues(targetColumn.Name, resultType, resultValues);
+    }
+
+    private static void ValidateMovingWindowSize(int windowSize)
+    {
+        if (windowSize <= 0)
+        {
+            throw new ArgumentException("Moving window size must be greater than zero.", nameof(windowSize));
+        }
     }
 
     private ISeries[] ResolvePartitionColumns()
