@@ -33,9 +33,10 @@ Selected DataFrame capabilities include:
 - Non-aggregating pivot with first-seen row and column ordering
 - Pivot table aggregations for Sum, Average, Min, and Max
 
-SQL sample project:
+Sample projects:
 
 - Runiq.Data.Samples.Sql - SQL Read and existing-table append with SQLite
+- Runiq.Data.Samples.Pivoting - Pivot, PivotTable Sum, and Unpivot reshaping
 
 Pivot table example:
 

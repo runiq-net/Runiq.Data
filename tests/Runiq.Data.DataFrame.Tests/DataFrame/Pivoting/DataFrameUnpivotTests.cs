@@ -274,6 +274,26 @@ public sealed class DataFrameUnpivotTests
         Assert.Equal(new[] { "Department", "Q1", "Q2" }, ColumnNames(result));
     }
 
+    // Verifies that values created by Pivot can be unpivoted when missing combinations produce null cells.
+    [Fact]
+    public void Unpivot_AfterPivotWithMissingCombination_PreservesNullableValueType()
+    {
+        var df = global::Runiq.Data.DataFrame.Create(new
+        {
+            Department = new[] { "Sales", "Sales", "Support" },
+            Quarter = new[] { "Q1", "Q2", "Q1" },
+            Revenue = new decimal?[] { 125000m, 138000m, 82000m }
+        });
+
+        var pivot = df.Pivot("Department", "Quarter", "Revenue");
+
+        var result = pivot.Unpivot(["Department"], ["Q1", "Q2"], "Quarter", "Revenue");
+
+        Assert.Equal(typeof(decimal?), pivot.Schema.GetColumn("Q1").DataType);
+        Assert.Equal(typeof(decimal?), result.Schema.GetColumn("Revenue").DataType);
+        Assert.Equal(new decimal?[] { 125000m, 82000m, 138000m, null }, Values<decimal?>(result, "Revenue"));
+    }
+
     // Verifies that existing PivotTable behavior remains available after adding Unpivot.
     [Fact]
     public void Unpivot_DoesNotRegressExistingPivotTableOperation()

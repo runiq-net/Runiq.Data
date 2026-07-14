@@ -2355,16 +2355,26 @@ public sealed class DataFrame
             CreateSeriesFromValues(indexColumn.Name, indexColumn.DataType, indexValues)
         };
 
+        var resultValueType = CreateNullablePivotResultType(valueColumn.DataType);
         for (var resultColumnIndex = 0; resultColumnIndex < pivotColumnNames.Count; resultColumnIndex++)
         {
             var columnValues = pivotValuesByRow
                 .Select(rowValues => rowValues[resultColumnIndex])
                 .ToArray();
 
-            resultColumns.Add(CreateSeriesFromValues(pivotColumnNames[resultColumnIndex], typeof(object), columnValues));
+            resultColumns.Add(CreateSeriesFromValues(pivotColumnNames[resultColumnIndex], resultValueType, columnValues));
         }
 
         return CreateFromSeries(resultColumns);
+    }
+
+    /// <summary>
+    /// Preserves pivot value type metadata while allowing missing result combinations to stay null.
+    /// </summary>
+    private static Type CreateNullablePivotResultType(Type valueType)
+    {
+        var nonNullableType = Nullable.GetUnderlyingType(valueType) ?? valueType;
+        return nonNullableType.IsValueType ? typeof(Nullable<>).MakeGenericType(nonNullableType) : valueType;
     }
 
     /// <summary>
