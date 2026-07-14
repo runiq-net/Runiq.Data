@@ -2188,12 +2188,7 @@ public sealed class DataFrame
 
     internal static object? MinOrMaxColumn(ISeries column, IReadOnlyList<int>? rowIndexes, bool findMaximum)
     {
-        var expectedType = Nullable.GetUnderlyingType(column.DataType) ?? column.DataType;
-        if (!typeof(IComparable).IsAssignableFrom(expectedType))
-        {
-            throw new ArgumentException(
-                $"Column '{column.Name}' has data type '{column.DataType}' and cannot be compared safely.");
-        }
+        var expectedType = GetComparableAggregationType(column);
 
         var rowCount = GetAggregationRowCount(column, rowIndexes);
         var result = GetNonNullAggregationValue(column, GetAggregationRowIndex(rowIndexes, 0));
@@ -2255,6 +2250,21 @@ public sealed class DataFrame
         }
 
         throw new ArgumentException($"Column '{column.Name}' has data type '{column.DataType}' and is not numeric.");
+    }
+
+    /// <summary>
+    /// Resolves the non-nullable comparable type accepted by Min and Max aggregation contracts.
+    /// </summary>
+    internal static Type GetComparableAggregationType(ISeries column)
+    {
+        var expectedType = Nullable.GetUnderlyingType(column.DataType) ?? column.DataType;
+        if (!typeof(IComparable).IsAssignableFrom(expectedType))
+        {
+            throw new ArgumentException(
+                $"Column '{column.Name}' has data type '{column.DataType}' and cannot be compared safely.");
+        }
+
+        return expectedType;
     }
 
     private static int GetAggregationRowCount(ISeries column, IReadOnlyList<int>? rowIndexes)

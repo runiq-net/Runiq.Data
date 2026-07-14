@@ -91,6 +91,120 @@ public sealed class WindowBuilder
         return AddPrimaryOrdering(columnName, descending: true);
     }
 
+    /// <summary>
+    /// Sums a numeric column within each partition and returns the result aligned to source rows.
+    /// </summary>
+    /// <param name="column">The existing numeric source column to aggregate.</param>
+    /// <returns>
+    /// A series aligned to the source DataFrame rows. The result type follows the DataFrame-level
+    /// numeric sum contract.
+    /// </returns>
+    /// <remarks>
+    /// When no partition columns are configured, the entire DataFrame is treated as one partition.
+    /// The source DataFrame is not mutated and no result column is added automatically.
+    /// </remarks>
+    /// <exception cref="ArgumentException">
+    /// Thrown when <paramref name="column"/> is empty or whitespace, contains null or incompatible
+    /// values in a non-empty partition, or is not numeric.
+    /// </exception>
+    /// <exception cref="ArgumentNullException">
+    /// Thrown when <paramref name="column"/> is <see langword="null"/>.
+    /// </exception>
+    /// <exception cref="KeyNotFoundException">Thrown when the named column does not exist.</exception>
+    /// <exception cref="OverflowException">Thrown when checked integer or decimal addition overflows.</exception>
+    public ISeries Sum(string column)
+    {
+        var targetColumn = source.GetColumn(column);
+        var resultType = Runiq.Data.DataFrame.GetSumResultType(targetColumn);
+
+        return BuildAggregateSeries(targetColumn, resultType, Runiq.Data.DataFrame.SumColumn);
+    }
+
+    /// <summary>
+    /// Averages a numeric column within each partition and returns the result aligned to source rows.
+    /// </summary>
+    /// <param name="column">The existing numeric source column to aggregate.</param>
+    /// <returns>A <see cref="double"/> series aligned to the source DataFrame rows.</returns>
+    /// <remarks>
+    /// When no partition columns are configured, the entire DataFrame is treated as one partition.
+    /// The source DataFrame is not mutated and no result column is added automatically.
+    /// </remarks>
+    /// <exception cref="ArgumentException">
+    /// Thrown when <paramref name="column"/> is empty or whitespace, contains null or incompatible
+    /// values in a non-empty partition, or is not numeric.
+    /// </exception>
+    /// <exception cref="ArgumentNullException">
+    /// Thrown when <paramref name="column"/> is <see langword="null"/>.
+    /// </exception>
+    /// <exception cref="KeyNotFoundException">Thrown when the named column does not exist.</exception>
+    /// <exception cref="OverflowException">Thrown when checked integer or decimal addition overflows before division.</exception>
+    public ISeries Average(string column)
+    {
+        var targetColumn = source.GetColumn(column);
+        Runiq.Data.DataFrame.GetNumericAggregationType(targetColumn);
+
+        return BuildAggregateSeries(
+            targetColumn,
+            typeof(double),
+            (aggregateColumn, rowIndexes) => Runiq.Data.DataFrame.AverageColumn(aggregateColumn, rowIndexes));
+    }
+
+    /// <summary>
+    /// Finds the minimum comparable value within each partition and returns the result aligned to source rows.
+    /// </summary>
+    /// <param name="column">The existing comparable source column to aggregate.</param>
+    /// <returns>A series aligned to the source DataFrame rows and preserving the source column type.</returns>
+    /// <remarks>
+    /// When no partition columns are configured, the entire DataFrame is treated as one partition.
+    /// The source DataFrame is not mutated and no result column is added automatically.
+    /// </remarks>
+    /// <exception cref="ArgumentException">
+    /// Thrown when <paramref name="column"/> is empty or whitespace, contains null or incompatible
+    /// values in a non-empty partition, or cannot be compared safely.
+    /// </exception>
+    /// <exception cref="ArgumentNullException">
+    /// Thrown when <paramref name="column"/> is <see langword="null"/>.
+    /// </exception>
+    /// <exception cref="KeyNotFoundException">Thrown when the named column does not exist.</exception>
+    public ISeries Min(string column)
+    {
+        var targetColumn = source.GetColumn(column);
+        Runiq.Data.DataFrame.GetComparableAggregationType(targetColumn);
+
+        return BuildAggregateSeries(
+            targetColumn,
+            targetColumn.DataType,
+            (aggregateColumn, rowIndexes) => Runiq.Data.DataFrame.MinOrMaxColumn(aggregateColumn, rowIndexes, findMaximum: false));
+    }
+
+    /// <summary>
+    /// Finds the maximum comparable value within each partition and returns the result aligned to source rows.
+    /// </summary>
+    /// <param name="column">The existing comparable source column to aggregate.</param>
+    /// <returns>A series aligned to the source DataFrame rows and preserving the source column type.</returns>
+    /// <remarks>
+    /// When no partition columns are configured, the entire DataFrame is treated as one partition.
+    /// The source DataFrame is not mutated and no result column is added automatically.
+    /// </remarks>
+    /// <exception cref="ArgumentException">
+    /// Thrown when <paramref name="column"/> is empty or whitespace, contains null or incompatible
+    /// values in a non-empty partition, or cannot be compared safely.
+    /// </exception>
+    /// <exception cref="ArgumentNullException">
+    /// Thrown when <paramref name="column"/> is <see langword="null"/>.
+    /// </exception>
+    /// <exception cref="KeyNotFoundException">Thrown when the named column does not exist.</exception>
+    public ISeries Max(string column)
+    {
+        var targetColumn = source.GetColumn(column);
+        Runiq.Data.DataFrame.GetComparableAggregationType(targetColumn);
+
+        return BuildAggregateSeries(
+            targetColumn,
+            targetColumn.DataType,
+            (aggregateColumn, rowIndexes) => Runiq.Data.DataFrame.MinOrMaxColumn(aggregateColumn, rowIndexes, findMaximum: true));
+    }
+
     internal OrderedWindowBuilder AddOrdering(string columnName, bool descending)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(columnName);
@@ -107,6 +221,33 @@ public sealed class WindowBuilder
             .ToArray();
 
         return new OrderedWindowBuilder(source, partitionColumnNames, updatedDescriptors);
+    }
+
+    /// <summary>
+    /// Groups source row indexes by the configured window partition columns while preserving
+    /// first-seen partition order and source-row order inside each partition.
+    /// </summary>
+    internal static IReadOnlyList<List<int>> BuildRowsByPartition(
+        Runiq.Data.DataFrame source,
+        IReadOnlyList<ISeries> partitionColumns)
+    {
+        var rowsByPartition = new Dictionary<WindowPartitionKey, List<int>>(WindowPartitionKeyComparer.Instance);
+        var orderedPartitions = new List<List<int>>();
+
+        for (var rowIndex = 0; rowIndex < source.Rows.Count(); rowIndex++)
+        {
+            var partitionKey = CreatePartitionKey(partitionColumns, rowIndex);
+            if (!rowsByPartition.TryGetValue(partitionKey, out var rows))
+            {
+                rows = [];
+                rowsByPartition.Add(partitionKey, rows);
+                orderedPartitions.Add(rows);
+            }
+
+            rows.Add(rowIndex);
+        }
+
+        return orderedPartitions;
     }
 
     private OrderedWindowBuilder AddPrimaryOrdering(string columnName, bool descending)
@@ -139,6 +280,56 @@ public sealed class WindowBuilder
         }
 
         return resolvedNames;
+    }
+
+    /// <summary>
+    /// Builds partition aggregate values with the DataFrame aggregation contract and writes each
+    /// aggregate result back to every source row in its partition.
+    /// </summary>
+    private ISeries BuildAggregateSeries(
+        ISeries targetColumn,
+        Type resultType,
+        Func<ISeries, IReadOnlyList<int>, object?> aggregate)
+    {
+        var partitionColumns = ResolvePartitionColumns();
+        var rowsByPartition = BuildRowsByPartition(source, partitionColumns);
+        var resultValues = new object?[source.Rows.Count()];
+
+        foreach (var partitionRows in rowsByPartition)
+        {
+            var aggregateValue = aggregate(targetColumn, partitionRows);
+            foreach (var rowIndex in partitionRows)
+            {
+                resultValues[rowIndex] = aggregateValue;
+            }
+        }
+
+        return Runiq.Data.DataFrame.CreateSeriesFromValues(targetColumn.Name, resultType, resultValues);
+    }
+
+    /// <summary>
+    /// Resolves the configured partition column names at execution time so builder instances
+    /// remain definition-only until a terminal operation runs.
+    /// </summary>
+    private ISeries[] ResolvePartitionColumns()
+    {
+        return partitionColumnNames
+            .Select(source.GetColumn)
+            .ToArray();
+    }
+
+    /// <summary>
+    /// Captures the partition values for one source row, including null keys as valid values.
+    /// </summary>
+    private static WindowPartitionKey CreatePartitionKey(IReadOnlyList<ISeries> partitionColumns, int rowIndex)
+    {
+        var values = new object?[partitionColumns.Count];
+        for (var index = 0; index < partitionColumns.Count; index++)
+        {
+            values[index] = partitionColumns[index].GetValue(rowIndex);
+        }
+
+        return new WindowPartitionKey(values);
     }
 }
 
@@ -387,21 +578,7 @@ public sealed class OrderedWindowBuilder
         IReadOnlyList<ISeries> partitionColumns,
         IReadOnlyList<ResolvedOrderingDescriptor> orderingColumns)
     {
-        var rowsByPartition = new Dictionary<WindowPartitionKey, List<int>>(WindowPartitionKeyComparer.Instance);
-        var orderedPartitions = new List<List<int>>();
-
-        for (var rowIndex = 0; rowIndex < source.Rows.Count(); rowIndex++)
-        {
-            var partitionKey = CreatePartitionKey(partitionColumns, rowIndex);
-            if (!rowsByPartition.TryGetValue(partitionKey, out var rows))
-            {
-                rows = [];
-                rowsByPartition.Add(partitionKey, rows);
-                orderedPartitions.Add(rows);
-            }
-
-            rows.Add(rowIndex);
-        }
+        var orderedPartitions = WindowBuilder.BuildRowsByPartition(source, partitionColumns);
 
         foreach (var rows in orderedPartitions)
         {
@@ -536,17 +713,6 @@ public sealed class OrderedWindowBuilder
         }
 
         return typeof(Nullable<>).MakeGenericType(sourceType);
-    }
-
-    private static WindowPartitionKey CreatePartitionKey(IReadOnlyList<ISeries> partitionColumns, int rowIndex)
-    {
-        var values = new object?[partitionColumns.Count];
-        for (var index = 0; index < partitionColumns.Count; index++)
-        {
-            values[index] = partitionColumns[index].GetValue(rowIndex);
-        }
-
-        return new WindowPartitionKey(values);
     }
 
     private static int CompareRows(
