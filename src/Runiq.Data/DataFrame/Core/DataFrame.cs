@@ -1260,6 +1260,82 @@ public sealed class DataFrame
     }
 
     /// <summary>
+    /// Creates a pivot table builder that aggregates duplicate index and column combinations.
+    /// </summary>
+    /// <param name="index">The source column whose first-seen values define result rows.</param>
+    /// <param name="columns">The source column whose first-seen values become dynamic result columns.</param>
+    /// <param name="values">The source column whose cells are aggregated into pivot table cells.</param>
+    /// <returns>
+    /// A builder that computes a new DataFrame when a terminal aggregation method such as
+    /// <see cref="PivotTableBuilder.Sum"/> is called.
+    /// </returns>
+    /// <remarks>
+    /// The builder captures only the source DataFrame and the three source column roles. The
+    /// source DataFrame is not mutated, and each terminal call produces an independent result.
+    /// </remarks>
+    /// <exception cref="ArgumentException">
+    /// Thrown when any role name is empty or whitespace, or when the same source column is used
+    /// for more than one role.
+    /// </exception>
+    /// <exception cref="ArgumentNullException">
+    /// Thrown when <paramref name="index"/>, <paramref name="columns"/>, or
+    /// <paramref name="values"/> is <see langword="null"/>.
+    /// </exception>
+    /// <exception cref="KeyNotFoundException">Thrown when a requested source column does not exist.</exception>
+    public PivotTableBuilder PivotTable(string index, string columns, string values)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(index);
+        ArgumentException.ThrowIfNullOrWhiteSpace(columns);
+        ArgumentException.ThrowIfNullOrWhiteSpace(values);
+        ValidateDistinctPivotRoles(index, columns, values);
+
+        _ = GetColumn(index);
+        _ = GetColumn(columns);
+        _ = GetColumn(values);
+
+        return new PivotTableBuilder(this, index, columns, values);
+    }
+
+    /// <summary>
+    /// Reshapes value columns into rows while preserving the supplied identifier columns.
+    /// </summary>
+    /// <param name="idColumns">
+    /// The source columns copied unchanged into each output row. The supplied order is preserved.
+    /// </param>
+    /// <param name="valueColumns">
+    /// The source columns whose names become variable values and whose cells become output values.
+    /// The supplied order controls the output row groups.
+    /// </param>
+    /// <param name="variableColumnName">The name of the output column that stores source value column names.</param>
+    /// <param name="valueColumnName">The name of the output column that stores source value cells.</param>
+    /// <returns>
+    /// A new DataFrame with identifier columns, the variable column, and the value column.
+    /// </returns>
+    /// <remarks>
+    /// Rows are emitted by value column first and by original source row order within each value
+    /// column, matching pandas melt ordering. The current DataFrame is not mutated.
+    /// </remarks>
+    /// <exception cref="ArgumentException">
+    /// Thrown when column names are empty or whitespace, requested columns are duplicated or used
+    /// in incompatible roles, output names conflict with source columns or each other, value
+    /// columns are empty, or value column types cannot be represented safely.
+    /// </exception>
+    /// <exception cref="ArgumentNullException">
+    /// Thrown when <paramref name="idColumns"/>, <paramref name="valueColumns"/>,
+    /// <paramref name="variableColumnName"/>, or <paramref name="valueColumnName"/> is
+    /// <see langword="null"/>.
+    /// </exception>
+    /// <exception cref="KeyNotFoundException">Thrown when a requested source column does not exist.</exception>
+    public DataFrame Unpivot(
+        IReadOnlyList<string> idColumns,
+        IReadOnlyList<string> valueColumns,
+        string variableColumnName,
+        string valueColumnName)
+    {
+        return UnpivotOperations.Create(this, idColumns, valueColumns, variableColumnName, valueColumnName);
+    }
+
+    /// <summary>
     /// Returns a new DataFrame containing the first specified number of rows while preserving the current schema.
     /// </summary>
     /// <param name="count">The maximum number of rows to include.</param>
@@ -2294,7 +2370,7 @@ public sealed class DataFrame
     /// <summary>
     /// Creates a result row initialized with null values for pivot combinations not seen yet.
     /// </summary>
-    private static List<object?> CreateNullPaddedPivotRow(int columnCount)
+    internal static List<object?> CreateNullPaddedPivotRow(int columnCount)
     {
         var values = new List<object?>(columnCount);
         for (var index = 0; index < columnCount; index++)
@@ -2308,7 +2384,7 @@ public sealed class DataFrame
     /// <summary>
     /// Rejects ambiguous pivot role assignments before any result construction begins.
     /// </summary>
-    private static void ValidateDistinctPivotRoles(string index, string columns, string values)
+    internal static void ValidateDistinctPivotRoles(string index, string columns, string values)
     {
         if (string.Equals(index, columns, StringComparison.OrdinalIgnoreCase))
         {
@@ -2329,7 +2405,7 @@ public sealed class DataFrame
     /// <summary>
     /// Returns a pivot column value only when it can be converted to a deterministic result column name.
     /// </summary>
-    private static object GetSupportedPivotColumnValue(ISeries pivotColumn, int rowIndex)
+    internal static object GetSupportedPivotColumnValue(ISeries pivotColumn, int rowIndex)
     {
         var value = pivotColumn.GetValue(rowIndex);
         if (value is null)
@@ -2363,7 +2439,7 @@ public sealed class DataFrame
     /// <summary>
     /// Converts supported pivot values to culture-invariant result column names without object fallback.
     /// </summary>
-    private static string ConvertPivotValueToColumnName(ISeries pivotColumn, object value)
+    internal static string ConvertPivotValueToColumnName(ISeries pivotColumn, object value)
     {
         var columnName = value switch
         {

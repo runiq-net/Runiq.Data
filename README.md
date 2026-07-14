@@ -29,8 +29,28 @@ Selected DataFrame capabilities include:
 - Distinct row projection
 - Grouped aggregation
 - Joins
+- Unpivot for reshaping selected wide columns into variable/value rows
 - Non-aggregating pivot with first-seen row and column ordering
+- Pivot table aggregations for Sum, Average, Min, and Max
 
 SQL sample project:
 
 - Runiq.Data.Samples.Sql - SQL Read and existing-table append with SQLite
+
+Pivot table example:
+
+```csharp
+var result = df
+    .PivotTable(index: "Department", columns: "Quarter", values: "Revenue")
+    .Sum();
+```
+
+Unpivot example:
+
+```csharp
+var result = df.Unpivot(
+    idColumns: ["Department"],
+    valueColumns: ["Q1", "Q2"],
+    variableColumnName: "Quarter",
+    valueColumnName: "Revenue");
+```
