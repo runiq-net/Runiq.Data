@@ -556,6 +556,66 @@ public sealed class OrderedWindowBuilder
         return BuildBoundaryValueSeries(column, useLastValue: true);
     }
 
+    /// <summary>
+    /// Sums a numeric column from the start of each ordered partition through each current row.
+    /// </summary>
+    /// <param name="column">The existing numeric source column to aggregate.</param>
+    /// <returns>
+    /// A series aligned to the source DataFrame rows. The result type follows the DataFrame-level
+    /// numeric sum contract.
+    /// </returns>
+    /// <remarks>
+    /// Partitions are scoped by configured partition columns, or by the entire DataFrame when no
+    /// partition is configured. Running windows are ordered and use the stable source-row
+    /// tie-breaker when all ordering keys are equal.
+    /// </remarks>
+    /// <exception cref="ArgumentException">
+    /// Thrown when <paramref name="column"/> is empty or whitespace, contains null or incompatible
+    /// values in a non-empty running range, or is not numeric.
+    /// </exception>
+    /// <exception cref="ArgumentNullException">
+    /// Thrown when <paramref name="column"/> is <see langword="null"/>.
+    /// </exception>
+    /// <exception cref="KeyNotFoundException">Thrown when the named column does not exist.</exception>
+    /// <exception cref="OverflowException">Thrown when checked integer or decimal addition overflows.</exception>
+    public ISeries RunningSum(string column)
+    {
+        var targetColumn = source.GetColumn(column);
+        var resultType = Runiq.Data.DataFrame.GetSumResultType(targetColumn);
+
+        return BuildRunningAggregateSeries(targetColumn, resultType, Runiq.Data.DataFrame.SumColumn);
+    }
+
+    /// <summary>
+    /// Averages a numeric column from the start of each ordered partition through each current row.
+    /// </summary>
+    /// <param name="column">The existing numeric source column to aggregate.</param>
+    /// <returns>A <see cref="double"/> series aligned to the source DataFrame rows.</returns>
+    /// <remarks>
+    /// Partitions are scoped by configured partition columns, or by the entire DataFrame when no
+    /// partition is configured. Running windows are ordered and use the stable source-row
+    /// tie-breaker when all ordering keys are equal.
+    /// </remarks>
+    /// <exception cref="ArgumentException">
+    /// Thrown when <paramref name="column"/> is empty or whitespace, contains null or incompatible
+    /// values in a non-empty running range, or is not numeric.
+    /// </exception>
+    /// <exception cref="ArgumentNullException">
+    /// Thrown when <paramref name="column"/> is <see langword="null"/>.
+    /// </exception>
+    /// <exception cref="KeyNotFoundException">Thrown when the named column does not exist.</exception>
+    /// <exception cref="OverflowException">Thrown when checked integer or decimal addition overflows before division.</exception>
+    public ISeries RunningAverage(string column)
+    {
+        var targetColumn = source.GetColumn(column);
+        Runiq.Data.DataFrame.GetNumericAggregationType(targetColumn);
+
+        return BuildRunningAggregateSeries(
+            targetColumn,
+            typeof(double),
+            (aggregateColumn, rowIndexes) => Runiq.Data.DataFrame.AverageColumn(aggregateColumn, rowIndexes));
+    }
+
     private OrderedWindowBuilder AddOrdering(string columnName, bool descending)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(columnName);
@@ -686,6 +746,33 @@ public sealed class OrderedWindowBuilder
         }
 
         return Runiq.Data.DataFrame.CreateSeriesFromValues(targetColumn.Name, targetColumn.DataType, resultValues);
+    }
+
+    /// <summary>
+    /// Builds ordered running aggregate values by reusing the DataFrame aggregate contract for
+    /// each growing partition prefix and writing results back to source row positions.
+    /// </summary>
+    private ISeries BuildRunningAggregateSeries(
+        ISeries targetColumn,
+        Type resultType,
+        Func<ISeries, IReadOnlyList<int>, object?> aggregate)
+    {
+        var partitionColumns = ResolvePartitionColumns();
+        var orderingColumns = ResolveOrderingColumns();
+        var sortedRowsByPartition = BuildSortedRowsByPartition(partitionColumns, orderingColumns);
+        var resultValues = new object?[source.Rows.Count()];
+
+        foreach (var partitionRows in sortedRowsByPartition)
+        {
+            var runningRows = new List<int>(partitionRows.Count);
+            foreach (var rowIndex in partitionRows)
+            {
+                runningRows.Add(rowIndex);
+                resultValues[rowIndex] = aggregate(targetColumn, runningRows);
+            }
+        }
+
+        return Runiq.Data.DataFrame.CreateSeriesFromValues(targetColumn.Name, resultType, resultValues);
     }
 
     private ISeries[] ResolvePartitionColumns()
