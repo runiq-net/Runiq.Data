@@ -17,3 +17,8 @@ Current IO capabilities include:
 - Excel Write
 - JSON Read
 - JSON Write
+- SQL Read through ADO.NET DbConnection and DbCommand. SQLite integration tested.
+
+SQL sample project:
+
+- Runiq.Data.Samples.Sql

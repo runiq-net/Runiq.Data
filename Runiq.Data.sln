@@ -35,6 +35,8 @@ Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Runiq.Data.IO.Tests", "test
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Runiq.Data.Samples.Json", "samples\Runiq.Data.Samples.Json\Runiq.Data.Samples.Json.csproj", "{34B4E0E4-838D-44A6-83CF-842EE9F76D33}"
 EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Runiq.Data.Samples.Sql", "samples\Runiq.Data.Samples.Sql\Runiq.Data.Samples.Sql.csproj", "{06979787-7DE0-45E4-B026-7FFA0561B3F4}"
+EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|Any CPU = Debug|Any CPU
@@ -201,6 +203,18 @@ Global
 		{34B4E0E4-838D-44A6-83CF-842EE9F76D33}.Release|x64.Build.0 = Release|Any CPU
 		{34B4E0E4-838D-44A6-83CF-842EE9F76D33}.Release|x86.ActiveCfg = Release|Any CPU
 		{34B4E0E4-838D-44A6-83CF-842EE9F76D33}.Release|x86.Build.0 = Release|Any CPU
+		{06979787-7DE0-45E4-B026-7FFA0561B3F4}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{06979787-7DE0-45E4-B026-7FFA0561B3F4}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{06979787-7DE0-45E4-B026-7FFA0561B3F4}.Debug|x64.ActiveCfg = Debug|Any CPU
+		{06979787-7DE0-45E4-B026-7FFA0561B3F4}.Debug|x64.Build.0 = Debug|Any CPU
+		{06979787-7DE0-45E4-B026-7FFA0561B3F4}.Debug|x86.ActiveCfg = Debug|Any CPU
+		{06979787-7DE0-45E4-B026-7FFA0561B3F4}.Debug|x86.Build.0 = Debug|Any CPU
+		{06979787-7DE0-45E4-B026-7FFA0561B3F4}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{06979787-7DE0-45E4-B026-7FFA0561B3F4}.Release|Any CPU.Build.0 = Release|Any CPU
+		{06979787-7DE0-45E4-B026-7FFA0561B3F4}.Release|x64.ActiveCfg = Release|Any CPU
+		{06979787-7DE0-45E4-B026-7FFA0561B3F4}.Release|x64.Build.0 = Release|Any CPU
+		{06979787-7DE0-45E4-B026-7FFA0561B3F4}.Release|x86.ActiveCfg = Release|Any CPU
+		{06979787-7DE0-45E4-B026-7FFA0561B3F4}.Release|x86.Build.0 = Release|Any CPU
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE
@@ -219,5 +233,6 @@ Global
 		{AB6C65A7-DF0F-4E17-9993-848E0E8F6D96} = {0AB3BF05-4346-4AA6-1389-037BE0695223}
 		{5FD0D98A-5413-4A4A-A0E4-F8C762D1FE24} = {0AB3BF05-4346-4AA6-1389-037BE0695223}
 		{34B4E0E4-838D-44A6-83CF-842EE9F76D33} = {5D20AA90-6969-D8BD-9DCD-8634F4692FDA}
+		{06979787-7DE0-45E4-B026-7FFA0561B3F4} = {5D20AA90-6969-D8BD-9DCD-8634F4692FDA}
 	EndGlobalSection
 EndGlobal
