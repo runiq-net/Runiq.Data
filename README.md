@@ -17,8 +17,11 @@ Current IO capabilities include:
 - Excel Write
 - JSON Read
 - JSON Write
-- SQL Read through ADO.NET DbConnection and DbCommand. SQLite integration tested.
+- SQL Read
+- SQL Write - Existing-table append
+
+SQL Read and existing-table append through ADO.NET DbConnection, DbCommand and DbTransaction. Provider-independent ADO.NET core with contract coverage for SQLite, SQL Server and PostgreSQL.
 
 SQL sample project:
 
-- Runiq.Data.Samples.Sql
+- Runiq.Data.Samples.Sql - SQL Read and existing-table append with SQLite

@@ -1,29 +1,36 @@
 using System.Globalization;
 using Microsoft.Data.Sqlite;
 using Runiq.Data;
+using Runiq.Data.IO;
 
 using var connection = new SqliteConnection("Data Source=:memory:");
 connection.Open();
 
 // SQLite in-memory databases exist only while the owning connection stays open.
 CreateEmployeesTable(connection);
+InsertInitialEmployees(connection);
 
-Console.WriteLine("=== All Employees ===");
-var allEmployees = DataFrame.ReadSql(
-    connection,
-    """
-    SELECT Id, Name, Department, Salary, Active
-    FROM Employees
-    ORDER BY Id
-    """);
-Print(allEmployees);
+var initialEmployees = ReadAllEmployees(connection);
+Print("Initial Employees", initialEmployees);
 
-Console.WriteLine();
-Console.WriteLine("=== Engineering Employees ===");
+var newEmployees = DataFrame.Create(new
+{
+    Id = new[] { 3, 4 },
+    Name = new[] { "Mehmet", "Zeynep" },
+    Department = new[] { "Engineering", "Sales" },
+    Salary = new double?[] { 98000.25, null },
+    Active = new[] { false, true }
+});
+
+newEmployees.WriteSql(connection, "Employees");
+
+var afterAppend = ReadAllEmployees(connection);
+Print("After WriteSql Append", afterAppend);
+
 using var engineeringCommand = connection.CreateCommand();
 engineeringCommand.CommandText =
     """
-    SELECT Id, Name, Salary
+    SELECT Id, Name, Department, Salary, Active, Source
     FROM Employees
     WHERE Department = @department
     ORDER BY Id
@@ -31,10 +38,50 @@ engineeringCommand.CommandText =
 engineeringCommand.Parameters.Add("@department", SqliteType.Text).Value = "Engineering";
 
 var engineeringEmployees = DataFrame.ReadSql(engineeringCommand);
-Print(engineeringEmployees);
+Print("Engineering Employees", engineeringEmployees);
+
+using (var transaction = connection.BeginTransaction())
+{
+    var temporaryEmployee = DataFrame.Create(new
+    {
+        Id = new[] { 5 },
+        Name = new[] { "Temporary Employee" },
+        Department = new[] { "Operations" },
+        Salary = new[] { 75000.00 },
+        Active = new[] { true }
+    });
+
+    // The caller owns the external transaction; Runiq.Data writes inside it
+    // without committing or rolling it back.
+    temporaryEmployee.WriteSql(
+        connection,
+        "Employees",
+        new SqlWriteOptions
+        {
+            Transaction = transaction
+        });
+
+    using var temporaryCommand = connection.CreateCommand();
+    temporaryCommand.Transaction = transaction;
+    temporaryCommand.CommandText =
+        """
+        SELECT Id, Name, Department, Salary, Active, Source
+        FROM Employees
+        WHERE Id = 5
+        ORDER BY Id
+        """;
+
+    var insideTransaction = DataFrame.ReadSql(temporaryCommand);
+    Print("Inside External Transaction", insideTransaction);
+
+    transaction.Rollback();
+}
+
+var afterRollback = ReadAllEmployees(connection);
+Print("After External Transaction Rollback", afterRollback);
 
 /// <summary>
-/// Creates and populates the sample Employees table in the caller-owned open SQLite connection.
+/// Creates the sample Employees table in the caller-owned open SQLite connection.
 /// </summary>
 static void CreateEmployeesTable(SqliteConnection connection)
 {
@@ -42,27 +89,53 @@ static void CreateEmployeesTable(SqliteConnection connection)
     command.CommandText =
         """
         CREATE TABLE Employees (
-            Id INTEGER NOT NULL,
+            Id INTEGER NOT NULL PRIMARY KEY,
             Name TEXT NOT NULL,
             Department TEXT NOT NULL,
             Salary REAL NULL,
-            Active INTEGER NOT NULL
+            Active INTEGER NOT NULL,
+            Source TEXT NOT NULL DEFAULT 'database'
         );
-
-        INSERT INTO Employees (Id, Name, Department, Salary, Active) VALUES
-            (1, 'Ali', 'Engineering', 125000.50, 1),
-            (2, 'Ayşe', 'Finance', 110000.00, 1),
-            (3, 'Mehmet', 'Engineering', 98000.25, 0),
-            (4, 'Zeynep', 'Sales', NULL, 1);
         """;
     command.ExecuteNonQuery();
 }
 
 /// <summary>
-/// Prints a compact DataFrame table so the sample stays focused on SQL Read usage.
+/// Inserts the initial database-owned rows that are preserved by the append sample.
 /// </summary>
-static void Print(DataFrame dataFrame)
+static void InsertInitialEmployees(SqliteConnection connection)
 {
+    using var command = connection.CreateCommand();
+    command.CommandText =
+        """
+        INSERT INTO Employees (Id, Name, Department, Salary, Active, Source) VALUES
+            (1, 'Ali', 'Engineering', 125000.50, 1, 'database'),
+            (2, 'Ayşe', 'Finance', 110000.00, 1, 'database');
+        """;
+    command.ExecuteNonQuery();
+}
+
+/// <summary>
+/// Reads the complete Employees table in a deterministic order for repeatable output.
+/// </summary>
+static DataFrame ReadAllEmployees(SqliteConnection connection)
+{
+    return DataFrame.ReadSql(
+        connection,
+        """
+        SELECT Id, Name, Department, Salary, Active, Source
+        FROM Employees
+        ORDER BY Id
+        """);
+}
+
+/// <summary>
+/// Prints a compact DataFrame table so the sample stays focused on SQL usage.
+/// </summary>
+static void Print(string title, DataFrame dataFrame)
+{
+    Console.WriteLine($"=== {title} ===");
+
     var columnNames = dataFrame.Columns.Select(static column => column.Name).ToArray();
     Console.WriteLine(string.Join(" | ", columnNames));
 
@@ -71,6 +144,8 @@ static void Print(DataFrame dataFrame)
         var values = columnNames.Select(columnName => FormatValue(dataFrame[columnName].GetValue(rowIndex)));
         Console.WriteLine(string.Join(" | ", values));
     }
+
+    Console.WriteLine();
 }
 
 /// <summary>
